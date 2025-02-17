@@ -9,7 +9,7 @@ Try to understand how we need to act when the system is operating in normal, joi
 While operating in normal mode two peers need to exchange only two messages:
 
 * **heartbeat** (asynchronously every X amount of time) with ack
-* **messages to update the state of the application** (can be direct between the peers or it can be forwarded to another one). The ack is decided by the application if it is needed or not(can also use nacks, but need to change assumptions).
+* **messages to update the state of the application** (can be direct between the peers or it can be forwarded to another one). The ack is decided by the application if it is needed or not(can also use nacks, but need to change assumptions and a bit more tricky).
 
 ## JOIN
 
@@ -31,7 +31,7 @@ But if we assume *that the node already present in the network has his own routi
 This works but it has two main issues to solve:
 
 * what if node B has its routing table not updated? An easy example is that node B is waiting for the ping of another node C which just joined the network. Then a direct connection between node A and C can potentially not be established. But it has an easy solution with **atomic operations**.
-* the network becomes pretty dense ( O(n^2) ), so the number of direct connections (and pings) becomes big very quickly.
+* the network becomes pretty dense ( O(n*e) ), so the number of direct connections (and pings) becomes big very quickly.
 
 The second problem is not that trivial to solve, but the main idea still remains there: we need to build a spanning tree of the network.
 
@@ -49,6 +49,8 @@ In this way the routing table still remains static, but one could think about a 
 
 **NB:** This works well with applications which ask a broadcast message first. Because with no broadcasts it may happen that node A will never be contacted.
 
+With this method the most important thing is that **the first node to which I connect is also the one with which I exchange my pingpong**. In this way we can construct a "spanning tree" of pingpongs to avoid having too many pings in the network, while ensuring that if some node exits or crashes the apllication can still work properly.
+
 ## EXITING
 
 So exiting the network can be either graceful of crashing.
@@ -61,8 +63,26 @@ It means that before closing the application the node asks to be removed from th
 
 I guess the best solution is to broadcast a message to ask to be removed from the network, even with no acks should be fine.
 
+Then each node should update accordingly his routing table.
+
+**NB:** We still need to ensure that if a node crashes then the nodes which were pinging with him find a way to "connect" and ping between each other.
+
 ### CRASHING
 
 Ok so crashes are a bit trickier because we also need to understand if we want to restore the state of the application. So let's start with the easy: *someone notices that a node has crashed and wants to notify everyone*.
 
 In this case it is easy conceptually but we need to be careful because there could be a network partition. But it does not matter as another node in the other partition will notice it and send to everyone left in the partition that a peer has crashed (then what to do the application decides it).
+
+The most important thing in this case is that **each remaining node in the network is aware of the fact that a node has crashed**. In this way we could have some unexpected behaviors (i.e. messages not delivered, causality not respected, ...) but it does not matter as we will restart from the snapshot when the application is restored.
+
+Or maybe one could resume the exchange of messages after a node has crashed and the network is rebuilt. But we need to ensure that our algorithm is resilient to a lot of disconnections too.
+
+But there are some problems with network partitions, so we need to distinguish the two cases:
+
+* if a node which noticed that the process crashed has no entries in its routing table, after a timer is elapsed (so nobody tried to contact him) then is considered isolated from the network and the **user** needs to manually reconnect to the network.
+
+* if a node is not isolated (i.e. his routing table contains some information) then there are two cases:
+* if the node was sending a *PING* (thus receiving a pong) to the crashed process then look for another entry to send the PING (like if it tries to join automatically the network again) and repeat the joining process. **NB:** in the case no node is reachable go to the step above.
+* if the node was sending a *PONG* (thus receiving a ping) to the crashed process then it asynchronously waits for someone to ping him and it deletes the entry in the table and does not send pongs back.
+
+In the case of if another peer (not directly connected) wants to contact the old peer an **invalidPeerAddress** message is sent back and can be handled by removing the entry from the routing table.
