@@ -7,7 +7,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class SocketHandler implements Runnable{
+class ClientSocketHandler implements Runnable{
 
     /**
      * Socket which represents the connection
@@ -48,7 +48,7 @@ class SocketHandler implements Runnable{
      * Constructor of the handler
      * @param socket socket to be managed
      */
-    public SocketHandler(Socket socket) {
+    public ClientSocketHandler(Socket socket) {
         this.socket = socket;
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
@@ -62,7 +62,7 @@ class SocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param mute specify if the handler is mute or not
      */
-    public SocketHandler(Socket socket, boolean mute) {
+    public ClientSocketHandler(Socket socket, boolean mute) {
         this(socket);
         this.mute = mute;
     }

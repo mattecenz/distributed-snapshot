@@ -18,7 +18,7 @@ class ConnectionManager {
     /**
      * List of active connections
      */
-    private final List<SocketHandler> handlerList;
+    private final List<ClientSocketHandler> handlerList;
 
     /**
      * Port of the server
@@ -66,7 +66,7 @@ class ConnectionManager {
                         if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
                         Socket socket = serverSocket.accept();
                         if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
-                        SocketHandler handler = new SocketHandler(socket);
+                        ClientSocketHandler handler = new ClientSocketHandler(socket);
                         this.handlerList.add(handler);
                         executor.submit(handler);
                         if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
