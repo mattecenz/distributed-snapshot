@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot;
+package polimi.ds.dsnapshot.Connection;
 
 import java.io.IOException;
 import java.net.ServerSocket;

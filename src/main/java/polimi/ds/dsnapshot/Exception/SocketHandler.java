@@ -1,4 +1,6 @@
-package polimi.ds.dsnapshot;
+package polimi.ds.dsnapshot.Exception;
+
+import polimi.ds.dsnapshot.Message;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -7,7 +9,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class ClientSocketHandler implements Runnable{
+class SocketHandler implements Runnable{
 
     /**
      * Socket which represents the connection
@@ -40,19 +42,13 @@ class ClientSocketHandler implements Runnable{
     private final AtomicBoolean listening;
 
     /**
-     * Lock used for output (send) operations
-     */
-    private final Object outLock;
-
-    /**
      * Constructor of the handler
      * @param socket socket to be managed
      */
-    public ClientSocketHandler(Socket socket) {
+    public SocketHandler(Socket socket) {
         this.socket = socket;
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
-        this.outLock = new Object();
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
     }
@@ -62,7 +58,7 @@ class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param mute specify if the handler is mute or not
      */
-    public ClientSocketHandler(Socket socket, boolean mute) {
+    public SocketHandler(Socket socket, boolean mute) {
         this(socket);
         this.mute = mute;
     }
@@ -74,11 +70,12 @@ class ClientSocketHandler implements Runnable{
     public void run() {
         // Set the timeout
         try {
-            if(!this.mute) System.out.println("[SocketHandler] Setting socket timeout... ");
+            if(!this.mute) System.out.print("[SocketHandler] Setting socket timeout... ");
             // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
             // will sleep, else an exception is generated.
             // TODO: wrap in a utils class
             this.socket.setSoTimeout(5000);
+            if(!this.mute) System.out.println("done");
         }
         catch (SocketException e) {
             //TODO: what to do ?
@@ -87,8 +84,9 @@ class ClientSocketHandler implements Runnable{
 
         // Create the object output stream
         try{
-            if(!this.mute) System.out.println("[SocketHandler] Creating the output stream... ");
+            if(!this.mute) System.out.print("[SocketHandler] Creating the output stream... ");
             this.out=new ObjectOutputStream(this.socket.getOutputStream());
+            if(!this.mute) System.out.println("done");
         }
         catch (IOException e){
             //TODO: what to do ?
@@ -101,20 +99,18 @@ class ClientSocketHandler implements Runnable{
 
     }
 
-    /**
-     * Method to launch the input stream of the handler in a separate thread.
-     */
     private void launchInboundMessagesThread(){
 
         //NB: we notice that this.mute is a shared variable, but always accessed as a read, so no problem there.
 
-        if(!this.mute) System.out.println("[SocketHandler] Creating input stream thread... ");
+        if(!this.mute) System.out.print("[SocketHandler] Creating input stream thread... ");
 
         Thread t = new Thread( ()->{
                 // Create the input stream as above
             try{
-                if(!this.mute) System.out.println("[SocketHandlerIN] Creating input stream...");
+                if(!this.mute) System.out.print("[SocketHandlerIN] Creating input stream...");
                 this.in=new ObjectInputStream(this.socket.getInputStream());
+                if(!this.mute) System.out.println("done");
             }catch (IOException e){
                 // TODO: what to do ?
                 System.err.println("IO exception: " + e.getMessage());
@@ -142,41 +138,15 @@ class ClientSocketHandler implements Runnable{
             }
         );
 
-        if(!mute) System.out.println("[SocketHandler] Launching input stream thread... ");
+        if(!mute) System.out.println("done");
+        if(!mute) System.out.print("[SocketHandler] Launching input stream thread... ");
 
         t.start();
+
+        if(!mute) System.out.println("done");
 
         this.available.set(true);
 
         // This function is done
-    }
-
-    /**
-     * Method invoked when sending a message to the output stream. This method is thread safe.
-     * @param m message to be sent
-     * @return true if the message has been sent correctly
-     */
-    public boolean sendMessage(Message m){
-        synchronized (this.outLock) {
-            if(!this.mute) System.out.println("[SocketHandler] Lock acquired...");
-            // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
-            if (!this.available.get()) {
-                if (!this.mute) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
-                return false;
-            }
-
-            try {
-                if (!this.mute) System.out.println("[SocketHandler] Sending message...");
-                // Important. synchronize everything in the output stream
-                this.out.writeObject(m);
-                this.out.flush();
-            } catch (IOException e) {
-                if (!this.mute) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
-                // TODO: what to do ?
-                return false;
-            }
-
-            return true;
-        }
     }
 }
