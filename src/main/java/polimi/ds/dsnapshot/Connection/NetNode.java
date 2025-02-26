@@ -7,20 +7,20 @@ import java.util.Objects;
  * The class provides getters, setters, and methods to compare instances (equals and hashCode).
  */
 public class NetNode {
-    private String IP;
+    private char[] IP;
     private int port;
 
-    public NetNode(String ip,int port){
+    public NetNode(char[] ip, int port){
         this.IP = ip;
         this.port = port;
     }
 
     // <editor-fold desc="Getter and Setter">
-    public String getIP() {
+    public char[] getIP() {
         return IP;
     }
 
-    public void setIP(String IP) {
+    public void setIP(char[] IP) {
         this.IP = IP;
     }
 
@@ -36,7 +36,7 @@ public class NetNode {
      * Compares this node with another object to check for equality.
      * Two nodes are considered equal if they have the same IP address and port.
      *
-     * @param obj the object to compare.
+     * @param other the object to compare.
      * @return {@code true} if the two nodes have the same IP address and port,
      *         {@code false} otherwise.
      */

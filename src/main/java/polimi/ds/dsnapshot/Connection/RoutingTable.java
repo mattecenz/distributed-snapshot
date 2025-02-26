@@ -4,6 +4,7 @@ import polimi.ds.dsnapshot.Connection.NetNode;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.PrimitiveIterator;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;

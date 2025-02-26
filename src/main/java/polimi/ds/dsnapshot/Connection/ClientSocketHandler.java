@@ -1,6 +1,6 @@
 package polimi.ds.dsnapshot.Connection;
 
-import polimi.ds.dsnapshot.Message;
+import polimi.ds.dsnapshot.Connection.Messages.Message;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;

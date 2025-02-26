@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot;
+package polimi.ds.dsnapshot.Connection.Messages;
 
 import java.io.Serializable;
 
@@ -10,14 +10,14 @@ public abstract class Message implements Serializable {
      * TODO: do I also need a identifier for the message ?
      */
 
-    private char internalBits;
+    protected byte internalBits;
 
     public Message(boolean needAck) {
 
         this.internalBits = 0;
 
         this.internalBits = needAck ?
-                (char) (this.internalBits | MessageUtility.BIT_ACK) :
+                (byte) (this.internalBits | MessageUtility.BIT_ACK) :
                 this.internalBits;
     }
 
