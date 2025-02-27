@@ -42,6 +42,16 @@ public class RoutingTable {
         routingTableFields.remove(destination);
     }
 
+    protected void removeAllIndirectPath(ClientSocketHandler handler){
+        var keys = routingTableFields.keys();
+        while (keys.hasMoreElements()) {
+            NetNode key = keys.nextElement();
+            if (routingTableFields.get(key).equals(handler)) {
+                routingTableFields.remove(key);
+            }
+        }
+    }
+
     protected ClientSocketHandler getNextHop(NetNode destination) throws RoutingTableException {
         ClientSocketHandler nextHop = routingTableFields.get(destination);
 

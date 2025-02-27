@@ -1,8 +1,9 @@
 package polimi.ds.dsnapshot.Connection;
 
-import polimi.ds.dsnapshot.Connection.Messages.DirectConnectionMsg;
-import polimi.ds.dsnapshot.Connection.Messages.JoinForwardMsg;
-import polimi.ds.dsnapshot.Connection.Messages.JoinMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ public class ConnectionManager {
      * List of active connections
      */
     private final List<ClientSocketHandler> handlerList;
+    private ClientSocketHandler anchorNodeHandler;
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     /**
      * Port of the server
@@ -101,6 +103,19 @@ public class ConnectionManager {
         t.start();
     }
 
+    /**
+     * Retrieves the IP address of the local machine.
+     *  @return a character array (`char[]`) representing the local machine's IP address.
+     *  @throws UnknownHostException if the machine's IP address cannot be determined.
+     */
+    private synchronized char[] getMachineIp() throws UnknownHostException {
+        // Get the local host address
+        InetAddress localHost = InetAddress.getLocalHost();
+
+        // Get the IP address as a string
+        String ipAddress = localHost.getHostAddress();
+        return ipAddress.toCharArray();
+    }
 
     // <editor-fold desc="Join procedure">
     /**
@@ -111,32 +126,36 @@ public class ConnectionManager {
      * @param anchorPort the port number of the node to join
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
-    private void JoinNet(char [] anchorIp, int anchorPort) throws IOException {
+    public synchronized void JoinNet(char [] anchorIp, int anchorPort) throws IOException {
         JoinMsg msg = new JoinMsg(getMachineIp(), this.port);
+        //create socket for the anchor node, add to direct connection list and save as anchor node
         ClientSocketHandler handler = new ClientSocketHandler(new Socket(Arrays.toString(anchorIp),anchorPort, mute));
         handler.run();
         handlerList.add(handler);
-
+        anchorNodeHandler = handler;
+        //send join msg to anchor node
         handler.sendMessage(msg);
         //TODO wait for ack and add handler to routing table when receive ack and start ping pong
     }
 
-    private char[] getMachineIp() throws UnknownHostException {
-        // Get the local host address
-        InetAddress localHost = InetAddress.getLocalHost();
-
-        // Get the IP address as a string
-        String ipAddress = localHost.getHostAddress();
-        return ipAddress.toCharArray();
-    }
-
-    private void ReceiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
+    /**
+    * Handles a join request received from another node in the network.
+    *
+    * @param msg     the {@link JoinMsg} containing information about the joining node.
+    * @param handler the {@link ClientSocketHandler} managing the client communication
+    *                for the incoming connection.
+    * @throws UnknownHostException if the IP address of the host node cannot be resolved.
+    */
+    private synchronized void ReceiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
         try {
+            //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
         } catch (RoutingTableException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
+
+        //forward join notify to neighbour
         JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(),this.getMachineIp(),this.port);
 
         for(ClientSocketHandler h : this.handlerList){
@@ -144,8 +163,12 @@ public class ConnectionManager {
         }
 
     }
-
-    private void ReceiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
+    /**
+     * Handles a forwarded join request in the network.
+     * @param msg the {@link JoinForwardMsg} containing details about the forwarder and the joiner.
+     * @param handler the {@link ClientSocketHandler} managing the client communication
+     */
+    private synchronized void ReceiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
         double randomValue = ThreadLocalRandom.current().nextDouble();
 
         try {
@@ -159,8 +182,6 @@ public class ConnectionManager {
                 handlerList.add(joinerHandler);
                 //add node in routing table
                 routingTable.get().addPath(new NetNode(msg.getIp(), msg.getPort()), joinerHandler);
-
-                //TODO create direct connection
             }else {
                 //creating undirected path to the joiner node with the anchor node
                 routingTable.get().addPath(new NetNode(msg.getAnchorIp(), msg.getAnchorPort()),handler);
@@ -170,8 +191,13 @@ public class ConnectionManager {
             //TODO manage: if I receive a join forward from a node already in the routing table (wtf)
         }
     }
-
-    private void receiveDirectConnectionMessage(DirectConnectionMsg msg, ClientSocketHandler handler) throws RoutingTableException {
+    /**
+     * Processes a direct connection message received from another node in the network.
+     * @param msg the {@link DirectConnectionMsg} containing the details of the direct connection request.
+     * @param handler the {@link ClientSocketHandler} managing the communication context for the incoming message.
+     * @throws RoutingTableException if the ip address is already in the {@link RoutingTable}
+     */
+    private synchronized void receiveDirectConnectionMessage(DirectConnectionMsg msg, ClientSocketHandler handler) throws RoutingTableException {
         //add node in routing table
         routingTable.get().addPath(new NetNode(msg.getIp(), msg.getPort()), handler);
         //save the direct connection in the handler list
@@ -179,7 +205,42 @@ public class ConnectionManager {
     }
     // </editor-fold>
 
+    // <editor-fold desc="Exit procedure">
+    public synchronized void ExitNet() throws IOException {
+        if (handlerList.isEmpty()) return;
+        //select randomly 1 direct connection
+        int randomIndex = ThreadLocalRandom.current().nextInt(handlerList.size());
+        ClientSocketHandler handler = handlerList.get(randomIndex);
 
+        //send exit message with info on the random selected connection and close socket
+        ExitMsg m = new ExitMsg(handler.getRemoteIp().toCharArray(),handler.getRemotePort());
+        for(ClientSocketHandler h : this.handlerList){
+            h.sendMessage(m);
+            h.close();
+            handlerList.remove(h);
+        }
+        //clear routing table
+        routingTable.get().clearTable();
+    }
+
+    private synchronized void ReceiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
+        try {
+            routingTable.get().removePath(new NetNode(handler.getRemoteIp().toCharArray(),handler.getRemotePort()));
+            routingTable.get().removeAllIndirectPath(handler);
+            handler.close();
+            handlerList.remove(handler);
+
+            //TODO manage new anchor
+            //TODO send exit notify
+
+        } catch (Exception e) {
+            //TODO if ip not in routing table
+            return;
+        }
+
+    }
+
+    // </editor-fold>
 
     // TODO: add the send of a message via the routing table
 

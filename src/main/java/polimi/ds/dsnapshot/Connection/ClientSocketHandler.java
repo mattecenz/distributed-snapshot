@@ -103,6 +103,11 @@ class ClientSocketHandler implements Runnable{
 
     }
 
+    public void close() throws IOException {
+        socket.close();
+        if(!this.mute) System.out.println("[SocketHandler] Socket closed!");
+    }
+
     /**
      * Method to launch the input stream of the handler in a separate thread.
      */
@@ -180,5 +185,13 @@ class ClientSocketHandler implements Runnable{
 
             return true;
         }
+    }
+
+    public String getRemoteIp(){
+        return this.socket.getInetAddress().getHostAddress();
+    }
+
+    public int getRemotePort(){
+        return this.socket.getPort();
     }
 }

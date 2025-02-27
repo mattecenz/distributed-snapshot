@@ -1,8 +1,9 @@
-package polimi.ds.dsnapshot.Connection.Messages;
+package polimi.ds.dsnapshot.Connection.Messages.Join;
 
-import java.util.Arrays;
+import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
 
-public class JoinMsg extends Message{
+public class JoinMsg extends Message {
     private char[] ip = new char[15];
     private int port;
     public JoinMsg(char[] ip, int port) {
