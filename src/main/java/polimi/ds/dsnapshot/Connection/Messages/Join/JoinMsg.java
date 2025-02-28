@@ -1,25 +1,30 @@
 package polimi.ds.dsnapshot.Connection.Messages.Join;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.MessageID;
 import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
 
+//TODO: è abstract la classe oppure no ?
 public class JoinMsg extends Message {
-    private char[] ip = new char[15];
-    private int port;
-    public JoinMsg(char[] ip, int port) {
-        super(true);
+    private final String ip;
+    private final int port;
+
+    public JoinMsg(MessageID messageID, String ip, int port) {
+        super(messageID, true);
 
         this.ip = ip;
         this.port = port;
-
-        this.internalBits += MessageUtility.BIT_JOIN;
     }
 
-    public char[] getIp() {
+    public JoinMsg(String ip, int port) {
+        this(MessageID.MESSAGE_JOIN, ip, port);
+    }
+
+    public final String getIp() {
         return ip;
     }
 
-    public int getPort() {
+    public final int getPort() {
         return port;
     }
 }

@@ -23,7 +23,7 @@ public class RoutingTableTest {
 
     @Test
     void testAddPathSuccessfully() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node1".toCharArray(),10);
+        NetNode node1 = new NetNode("Node1",10);
 
         routingTable.addPath(node1, socketHandler);
 
@@ -33,7 +33,7 @@ public class RoutingTableTest {
 
     @Test
     void testAddPathThrowsExceptionForDuplicateNode() {
-        NetNode node1 = new NetNode("Node2".toCharArray(),10);
+        NetNode node1 = new NetNode("Node2",10);
 
         assertDoesNotThrow(() -> routingTable.addPath(node1, socketHandler));
 
@@ -46,7 +46,7 @@ public class RoutingTableTest {
 
     @Test
     void testUpdatePathThrowsExceptionForNonExistentNode() {
-        NetNode node1 = new NetNode("Node4".toCharArray(),10);
+        NetNode node1 = new NetNode("Node4",10);
         RoutingTableException exception = assertThrows(RoutingTableException.class, () -> {
             routingTable.updatePath(node1, socketHandler);
         });
@@ -56,8 +56,8 @@ public class RoutingTableTest {
 
     @Test
     void testClearRoutingTable() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node5".toCharArray(),10);
-        NetNode node2 = new NetNode("Node6".toCharArray(),10);
+        NetNode node1 = new NetNode("Node5",10);
+        NetNode node2 = new NetNode("Node6",10);
 
         routingTable.addPath(node1, socketHandler);
         routingTable.addPath(node2, socketHandler);
@@ -69,7 +69,7 @@ public class RoutingTableTest {
 
     @Test
     void testGetPathSuccessfully() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node7".toCharArray(),10);
+        NetNode node1 = new NetNode("Node7",10);
 
         routingTable.addPath(node1, socketHandler);
 
@@ -83,7 +83,7 @@ public class RoutingTableTest {
 
     @Test
     void testGetPathThrowsExceptionForNonExistentNode() {
-        NetNode node1 = new NetNode("Node8".toCharArray(),10);
+        NetNode node1 = new NetNode("Node8",10);
 
         RoutingTableException exception = assertThrows(RoutingTableException.class, () -> {
             routingTable.getNextHop(node1);
@@ -94,8 +94,8 @@ public class RoutingTableTest {
 
     @Test
     void testRemoveAllIndirectPathSuccessfully() throws RoutingTableException {
-        NetNode node = new NetNode("Node9".toCharArray(),10);
-        NetNode node1 = new NetNode("Node10".toCharArray(),10);
+        NetNode node = new NetNode("Node9",10);
+        NetNode node1 = new NetNode("Node10",10);
 
         routingTable.addPath(node, socketHandler);
         routingTable.addPath(node1, socketHandler);
@@ -107,8 +107,8 @@ public class RoutingTableTest {
 
     @Test
     void testRemoveAllIndirectPathSuccessfully1() throws RoutingTableException {
-        NetNode node = new NetNode("Node9".toCharArray(),10);
-        NetNode node1 = new NetNode("Node10".toCharArray(),10);
+        NetNode node = new NetNode("Node9",10);
+        NetNode node1 = new NetNode("Node10",10);
 
         ClientSocketHandler socketHandler1 = new ClientSocketHandler(new Socket());;
 

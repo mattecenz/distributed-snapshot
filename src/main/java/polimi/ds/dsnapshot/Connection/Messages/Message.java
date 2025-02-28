@@ -10,15 +10,35 @@ public abstract class Message implements Serializable {
      * TODO: do I also need a identifier for the message ?
      */
 
+    /**
+     * Internal bits useful for some potential services
+     */
     protected byte internalBits;
 
-    public Message(boolean needAck) {
+    /**
+     * Id of the message
+     */
+    protected MessageID internalID;
 
-        this.internalBits = 0;
+    /**
+     * Constructor with the ID
+     * @param internalID id of the message (must be an unique number for each message)
+     */
+    public Message(MessageID internalID){
+        this.internalID = internalID;
+    }
+
+    /**
+     * Constructor with the ID and a bit for ack
+     * @param internalID id of the message (must be an unique number for each message)
+     * @param needAck true if this message needs to receive an ack
+     */
+    public Message(MessageID internalID, boolean needAck) {
+        this(internalID);
 
         this.internalBits = needAck ?
                 (byte) (this.internalBits | MessageUtility.BIT_ACK) :
-                this.internalBits;
+                0;
     }
 
 }

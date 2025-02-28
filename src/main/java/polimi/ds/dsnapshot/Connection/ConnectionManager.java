@@ -127,7 +127,7 @@ public class ConnectionManager {
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
     public synchronized void JoinNet(char [] anchorIp, int anchorPort) throws IOException {
-        JoinMsg msg = new JoinMsg(getMachineIp(), this.port);
+        JoinMsg msg = new JoinMsg(Arrays.toString(getMachineIp()), this.port);
         //create socket for the anchor node, add to direct connection list and save as anchor node
         ClientSocketHandler handler = new ClientSocketHandler(new Socket(Arrays.toString(anchorIp),anchorPort, mute));
         handler.run();
@@ -156,7 +156,7 @@ public class ConnectionManager {
         }
 
         //forward join notify to neighbour
-        JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(),this.getMachineIp(),this.port);
+        JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(), Arrays.toString(this.getMachineIp()),this.port);
 
         for(ClientSocketHandler h : this.handlerList){
             h.sendMessage(m);
@@ -174,10 +174,10 @@ public class ConnectionManager {
         try {
             if(randomValue < this.directConnectionProbability){
                 //create socket connection with the joiner to instantiate a new direct connection
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(Arrays.toString(msg.getIp()),msg.getPort(), mute));
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(msg.getIp(),msg.getPort(), mute));
                 joinerHandler.run();
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg(this.getMachineIp(),this.port));
+                joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
                 //save the direct connection in the handler list
                 handlerList.add(joinerHandler);
                 //add node in routing table
@@ -213,7 +213,7 @@ public class ConnectionManager {
         ClientSocketHandler handler = handlerList.get(randomIndex);
 
         //send exit message with info on the random selected connection and close socket
-        ExitMsg m = new ExitMsg(handler.getRemoteIp().toCharArray(),handler.getRemotePort());
+        ExitMsg m = new ExitMsg(handler.getRemoteIp(),handler.getRemotePort());
         for(ClientSocketHandler h : this.handlerList){
             h.sendMessage(m);
             h.close();
@@ -225,7 +225,7 @@ public class ConnectionManager {
 
     private synchronized void ReceiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         try {
-            routingTable.get().removePath(new NetNode(handler.getRemoteIp().toCharArray(),handler.getRemotePort()));
+            routingTable.get().removePath(new NetNode(handler.getRemoteIp(),handler.getRemotePort()));
             routingTable.get().removeAllIndirectPath(handler);
             handler.close();
             handlerList.remove(handler);
