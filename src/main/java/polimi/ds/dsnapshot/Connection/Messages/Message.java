@@ -41,4 +41,10 @@ public abstract class Message implements Serializable {
                 0;
     }
 
+    /**
+     * Getter of the internal ID
+     * @return the internal id of the message
+     */
+    public final MessageID getInternalID() {return this.internalID;}
+
 }
