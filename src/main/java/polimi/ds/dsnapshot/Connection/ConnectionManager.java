@@ -4,6 +4,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ public class ConnectionManager {
      * Port of the server
      */
     private final int port;
+    //TODO: put it in a constant ?
     double directConnectionProbability = 0.7; // 70%
 
     /**
@@ -79,7 +81,7 @@ public class ConnectionManager {
                         if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
                         Socket socket = serverSocket.accept();
                         if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
-                        ClientSocketHandler handler = new ClientSocketHandler(socket);
+                        ClientSocketHandler handler = new ClientSocketHandler(socket, this);
                         this.handlerList.add(handler);
                         executor.submit(handler);
                         if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
@@ -108,6 +110,7 @@ public class ConnectionManager {
      *  @return a character array (`char[]`) representing the local machine's IP address.
      *  @throws UnknownHostException if the machine's IP address cannot be determined.
      */
+    // TODO: maybe do not need synchronized? If we assume the IP does not change...
     private synchronized char[] getMachineIp() throws UnknownHostException {
         // Get the local host address
         InetAddress localHost = InetAddress.getLocalHost();
@@ -127,9 +130,9 @@ public class ConnectionManager {
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
     public synchronized void JoinNet(char [] anchorIp, int anchorPort) throws IOException {
-        JoinMsg msg = new JoinMsg(getMachineIp(), this.port);
+        JoinMsg msg = new JoinMsg(Arrays.toString(getMachineIp()), this.port);
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(new Socket(Arrays.toString(anchorIp),anchorPort, mute));
+        ClientSocketHandler handler = new ClientSocketHandler(new Socket(Arrays.toString(anchorIp),anchorPort, mute), this);
         handler.run();
         handlerList.add(handler);
         anchorNodeHandler = handler;
@@ -146,7 +149,7 @@ public class ConnectionManager {
     *                for the incoming connection.
     * @throws UnknownHostException if the IP address of the host node cannot be resolved.
     */
-    private synchronized void ReceiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
+    private void ReceiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
         try {
             //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
@@ -156,7 +159,7 @@ public class ConnectionManager {
         }
 
         //forward join notify to neighbour
-        JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(),this.getMachineIp(),this.port);
+        JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(), Arrays.toString(this.getMachineIp()),this.port);
 
         for(ClientSocketHandler h : this.handlerList){
             h.sendMessage(m);
@@ -168,16 +171,16 @@ public class ConnectionManager {
      * @param msg the {@link JoinForwardMsg} containing details about the forwarder and the joiner.
      * @param handler the {@link ClientSocketHandler} managing the client communication
      */
-    private synchronized void ReceiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
+    private void ReceiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
         double randomValue = ThreadLocalRandom.current().nextDouble();
 
         try {
             if(randomValue < this.directConnectionProbability){
                 //create socket connection with the joiner to instantiate a new direct connection
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(Arrays.toString(msg.getIp()),msg.getPort(), mute));
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(msg.getIp(),msg.getPort(), mute), this);
                 joinerHandler.run();
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg(this.getMachineIp(),this.port));
+                joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
                 //save the direct connection in the handler list
                 handlerList.add(joinerHandler);
                 //add node in routing table
@@ -197,7 +200,7 @@ public class ConnectionManager {
      * @param handler the {@link ClientSocketHandler} managing the communication context for the incoming message.
      * @throws RoutingTableException if the ip address is already in the {@link RoutingTable}
      */
-    private synchronized void receiveDirectConnectionMessage(DirectConnectionMsg msg, ClientSocketHandler handler) throws RoutingTableException {
+    private void receiveDirectConnectionMessage(DirectConnectionMsg msg, ClientSocketHandler handler) throws RoutingTableException {
         //add node in routing table
         routingTable.get().addPath(new NetNode(msg.getIp(), msg.getPort()), handler);
         //save the direct connection in the handler list
@@ -213,7 +216,7 @@ public class ConnectionManager {
         ClientSocketHandler handler = handlerList.get(randomIndex);
 
         //send exit message with info on the random selected connection and close socket
-        ExitMsg m = new ExitMsg(handler.getRemoteIp().toCharArray(),handler.getRemotePort());
+        ExitMsg m = new ExitMsg(handler.getRemoteIp(),handler.getRemotePort());
         for(ClientSocketHandler h : this.handlerList){
             h.sendMessage(m);
             h.close();
@@ -223,9 +226,9 @@ public class ConnectionManager {
         routingTable.get().clearTable();
     }
 
-    private synchronized void ReceiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
+    private void ReceiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         try {
-            routingTable.get().removePath(new NetNode(handler.getRemoteIp().toCharArray(),handler.getRemotePort()));
+            routingTable.get().removePath(new NetNode(handler.getRemoteIp(),handler.getRemotePort()));
             routingTable.get().removeAllIndirectPath(handler);
             handler.close();
             handlerList.remove(handler);
@@ -243,5 +246,65 @@ public class ConnectionManager {
     // </editor-fold>
 
     // TODO: add the send of a message via the routing table
+
+    /**
+     * Method invoked when a client handler receives a message. This method is SYNCHRONIZED on the entire object
+     * to ensure that all the operations in it are atomic on all the structures of the manager.
+     * @param m message received
+     */
+    synchronized void receiveMessage(Message m, ClientSocketHandler handler){
+
+        // Switch the ID of the message and do what you need to do:
+        // TODO: I have an idea to possibly be more efficient.
+        //  Maybe not all messages need a full locking on the object so you can pass it in the internal bits
+
+        switch(m.getInternalID()){
+            case MESSAGE_JOIN -> {
+                try {
+                    this.ReceiveJoin((JoinMsg) m, handler);
+                } catch (UnknownHostException e) {
+                    // TODO: decide
+                    System.err.println("[ConnectionManager] Unknown host: " + e.getMessage());
+                }
+            }
+            case MESSAGE_EXIT -> {
+                try {
+                    this.ReceiveExit((ExitMsg) m, handler);
+                } catch (IOException e) {
+                    // TODO: decide
+                    System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
+                }
+            }
+            case MESSAGE_EXITNOTIFY -> {
+                //TODO: I think here update the routing table
+            }
+            case MESSAGE_JOINFORWARD -> {
+                try {
+                    this.ReceiveJoinForward((JoinForwardMsg) m, handler);
+                } catch (IOException e) {
+                    // TODO: decide
+                    System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
+                }
+            }
+            case MESSAGE_DIRECTCONNECTION -> {
+                try{
+                    this.receiveDirectConnectionMessage((DirectConnectionMsg) m, handler);
+                }
+                catch (RoutingTableException e){
+                    // TODO: decide, i dont know what these exceptions do
+                    System.err.println("[ConnectionManager] Routing table exception: " + e.getMessage());
+                }
+                break;
+            }
+            case MESSAGE_NOTIMPLEMENTED -> {
+                // TODO: decide, should be the same as default
+                break;
+            }
+            case null, default -> {
+                // TODO: decide
+            }
+        }
+
+    }
 
 }

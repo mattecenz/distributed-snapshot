@@ -1,23 +1,25 @@
 package polimi.ds.dsnapshot.Connection.Messages.Join;
 
+import polimi.ds.dsnapshot.Connection.Messages.MessageID;
 import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
 
 public class JoinForwardMsg  extends JoinMsg {
 
-    private char[] anchorIp;
-    private int anchorPort;
+    private final String anchorIp;
+    private final int anchorPort;
 
-    public JoinForwardMsg(char[] ip, int port, char[] anchorIp, int anchorPort) {
-        super(ip, port);
+    public JoinForwardMsg(String ip, int port, String anchorIp, int anchorPort) {
+        super(MessageID.MESSAGE_JOINFORWARD, ip, port);
 
-        this.internalBits = MessageUtility.BIT_JOIN_FORWARD;
+        this.anchorIp = anchorIp;
+        this.anchorPort = anchorPort;
     }
 
-    public char[] getAnchorIp() {
+    public final String getAnchorIp() {
         return anchorIp;
     }
 
-    public int getAnchorPort() {
+    public final int getAnchorPort() {
         return anchorPort;
     }
 }

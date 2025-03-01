@@ -15,7 +15,6 @@ class ClientSocketHandler implements Runnable{
      * Socket which represents the connection
      */
     private final Socket socket;
-
     /**
      * Output stream
      */
@@ -25,7 +24,10 @@ class ClientSocketHandler implements Runnable{
      * Input stream
      */
     private ObjectInputStream in;
-
+    /**
+     * Reference to the original connection manager for callback when a message is received
+     */
+    private final ConnectionManager manager;
     /**
      * Mute attribute of the server
      */
@@ -49,11 +51,13 @@ class ClientSocketHandler implements Runnable{
     /**
      * Constructor of the handler
      * @param socket socket to be managed
+     * @param manager reference to the connection manager
      */
-    public ClientSocketHandler(Socket socket) {
+    public ClientSocketHandler(Socket socket, ConnectionManager manager) {
         this.socket = socket;
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
+        this.manager = manager;
         this.outLock = new Object();
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
@@ -64,9 +68,18 @@ class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param mute specify if the handler is mute or not
      */
-    public ClientSocketHandler(Socket socket, boolean mute) {
-        this(socket);
+    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
+        this(socket, manager);
         this.mute = mute;
+    }
+
+    /**
+     * Constructor of the handler without the connection manager.
+     * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
+     * @param socket socket to be managed
+     */
+    public ClientSocketHandler(Socket socket) {
+        this(socket, null);
     }
 
     /**
@@ -136,7 +149,8 @@ class ClientSocketHandler implements Runnable{
                     if(!this.mute) System.out.println("[SocketHandlerIN] Listening... ");
                     Message m = (Message) this.in.readObject();
                     if(!this.mute) System.out.println("[SocketHandlerIN] Message received!");
-                    // TODO: handle the message
+                    // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
+                    this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
                     System.err.println("[SocketHandlerIN] IO exception: " + e.getMessage());
                     // TODO: what to do ?
