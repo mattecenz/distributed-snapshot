@@ -1,6 +1,7 @@
 package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
@@ -15,6 +16,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -129,15 +131,15 @@ public class ConnectionManager {
      * @param anchorPort the port number of the node to join
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
-    public synchronized void JoinNet(char [] anchorIp, int anchorPort) throws IOException {
+    public synchronized void joinNet(String anchorIp, int anchorPort) throws IOException {
         JoinMsg msg = new JoinMsg(Arrays.toString(getMachineIp()), this.port);
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(new Socket(Arrays.toString(anchorIp),anchorPort, mute), this);
+        ClientSocketHandler handler = new ClientSocketHandler(new Socket(anchorIp,anchorPort, mute), this);
         handler.run();
         handlerList.add(handler);
-        anchorNodeHandler = handler;
         //send join msg to anchor node
         handler.sendMessage(msg);
+        anchorNodeHandler = handler; //TODO better if this is done when receive ack
         //TODO wait for ack and add handler to routing table when receive ack and start ping pong
     }
 
@@ -149,7 +151,7 @@ public class ConnectionManager {
     *                for the incoming connection.
     * @throws UnknownHostException if the IP address of the host node cannot be resolved.
     */
-    private void ReceiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
+    private void receiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
         try {
             //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
@@ -162,7 +164,7 @@ public class ConnectionManager {
         JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(), Arrays.toString(this.getMachineIp()),this.port);
 
         for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(m);
+            if(h!=handler)h.sendMessage(m);
         }
 
     }
@@ -171,7 +173,7 @@ public class ConnectionManager {
      * @param msg the {@link JoinForwardMsg} containing details about the forwarder and the joiner.
      * @param handler the {@link ClientSocketHandler} managing the client communication
      */
-    private void ReceiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
+    private void receiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
         double randomValue = ThreadLocalRandom.current().nextDouble();
 
         try {
@@ -209,7 +211,7 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    public synchronized void ExitNet() throws IOException {
+    public synchronized void exitNet() throws IOException {
         if (handlerList.isEmpty()) return;
         //select randomly 1 direct connection
         int randomIndex = ThreadLocalRandom.current().nextInt(handlerList.size());
@@ -226,21 +228,56 @@ public class ConnectionManager {
         routingTable.get().clearTable();
     }
 
-    private void ReceiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
+    private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         try {
             routingTable.get().removePath(new NetNode(handler.getRemoteIp(),handler.getRemotePort()));
             routingTable.get().removeAllIndirectPath(handler);
             handler.close();
             handlerList.remove(handler);
 
-            //TODO manage new anchor
-            //TODO send exit notify
+            if(handler == anchorNodeHandler){
+                //reassign anchor node
+                this.newAnchorNode(msg);
+            }else if(anchorNodeHandler != null){
+                //forward exit notify to anchor node only
+                this.sendExitNotify(anchorNodeHandler, handler.getRemoteIp(), handler.getRemotePort());
+
+                //TODO send to anchor node only isn't enough, discuss how to avoid message loops
+            }
 
         } catch (Exception e) {
             //TODO if ip not in routing table
             return;
         }
+    }
+    /**
+     * Handles the assignment of a new anchor node when the current anchor node exits the network.
+     * This method determines whether a path to the new anchor exists in the routing table
+     * and establishes a direct connection if necessary.
+     * @param msg     the {@link ExitMsg} containing the IP and port of the new anchor node.
+     */
+    private void newAnchorNode(ExitMsg msg) throws IOException {
+        ClientSocketHandler newAnchorNextHop;
+        try {
+            // Attempt to fetch the next hop in the routing table for the new anchor node.
+            newAnchorNextHop = routingTable.get().getNextHop(new NetNode(msg.getNewAnchorIp(), msg.getNewAnchorPort()));
+        } catch (RoutingTableException e) {
+            // No path to reach the new anchor node, establish a direct connection.
+            this.joinNet(msg.getNewAnchorIp(), msg.getNewAnchorPort());
+            return;
+        }
 
+        // Check if there is already a direct connection with the new anchor node.
+        if(Objects.equals(newAnchorNextHop.getRemoteIp(), msg.getNewAnchorIp()) && newAnchorNextHop.getRemotePort()==msg.getNewAnchorPort()){
+            //TODO: there is already a direct cnt between this node and the anchor -> start ping pong
+            return;
+        }
+        // No direct connection with the new anchor node; establish one.
+        this.joinNet(msg.getNewAnchorIp(), msg.getNewAnchorPort());
+    }
+    private void sendExitNotify(ClientSocketHandler handler, String exitIp, int exitPort){
+        ExitNotify exitNotify = new ExitNotify(exitIp, exitPort);
+        handler.sendMessage(exitNotify);
     }
 
     // </editor-fold>
@@ -261,7 +298,7 @@ public class ConnectionManager {
         switch(m.getInternalID()){
             case MESSAGE_JOIN -> {
                 try {
-                    this.ReceiveJoin((JoinMsg) m, handler);
+                    this.receiveJoin((JoinMsg) m, handler);
                 } catch (UnknownHostException e) {
                     // TODO: decide
                     System.err.println("[ConnectionManager] Unknown host: " + e.getMessage());
@@ -269,7 +306,7 @@ public class ConnectionManager {
             }
             case MESSAGE_EXIT -> {
                 try {
-                    this.ReceiveExit((ExitMsg) m, handler);
+                    this.receiveExit((ExitMsg) m, handler);
                 } catch (IOException e) {
                     // TODO: decide
                     System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
@@ -280,7 +317,7 @@ public class ConnectionManager {
             }
             case MESSAGE_JOINFORWARD -> {
                 try {
-                    this.ReceiveJoinForward((JoinForwardMsg) m, handler);
+                    this.receiveJoinForward((JoinForwardMsg) m, handler);
                 } catch (IOException e) {
                     // TODO: decide
                     System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
