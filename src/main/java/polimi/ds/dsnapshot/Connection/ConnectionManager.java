@@ -36,6 +36,10 @@ public class ConnectionManager {
     private ClientSocketHandler anchorNodeHandler;
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     /**
+     * Reference to the handler of the acks
+     */
+    private final AckHandler ackHandler;
+    /**
      * Port of the server
      */
     private final int port;
@@ -52,6 +56,7 @@ public class ConnectionManager {
      */
     public ConnectionManager(int port){
         this.handlerList = new ArrayList<>();
+        this.ackHandler = new AckHandler();
         this.port = port;
 
         System.out.println("[ConnectionManager] ConnectionManager created successfully...");
@@ -105,6 +110,51 @@ public class ConnectionManager {
         if(!mute) System.out.println("[ConnectionManager] Launching the thread...");
 
         t.start();
+    }
+
+    // TODO: maybe its better if the method is private (called by a generic sendMessage that works as interface)
+    // TODO: refactor well to work with exceptions
+    // TODO: discuss a bit if every message needs the destination ip:port
+    // TODO: there is a problem, the MessageAck is a different class than the Message
+    public boolean sendMessageSynchronized(Message m, String ip, int port){
+
+        if(!this.mute) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
+
+        NetNode destNode = new NetNode(ip, port);
+
+        try {
+            if(!this.mute) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
+            ClientSocketHandler handler = routingTable.get().getNextHop(destNode);
+
+            if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
+            int seqn = m.getSequenceNumber();
+            this.ackHandler.insertAckId(seqn);
+
+            if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
+            boolean b = handler.sendMessage(m);
+
+
+            if(!b) {
+                if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
+                return false;
+            }
+
+            if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
+
+            // Here I need to synchronize
+            // TODO: this is basically a spinlock, other option is to go to sleep
+            while(this.ackHandler.isAckIdPresent(seqn));
+
+            // Here some other thread will have removed the sequence number from the set so it means that the ack
+            // Has been received correctly, and it is safe to return
+
+            if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+
+        } catch (RoutingTableException e) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

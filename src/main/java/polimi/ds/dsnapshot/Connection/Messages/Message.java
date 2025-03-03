@@ -21,11 +21,17 @@ public abstract class Message implements Serializable {
     protected MessageID internalID;
 
     /**
+     * Unique sequence number of the message
+     */
+    private final int sequenceNumber;
+
+    /**
      * Constructor with the ID
      * @param internalID id of the message (must be an unique number for each message)
      */
     public Message(MessageID internalID){
         this.internalID = internalID;
+        this.sequenceNumber = MessageSQN.getNextSequenceNumber();
     }
 
     /**
@@ -46,5 +52,19 @@ public abstract class Message implements Serializable {
      * @return the internal id of the message
      */
     public final MessageID getInternalID() {return this.internalID;}
+
+    /**
+     * Getter of the sequence number
+     * @return the sequence number of the message
+     */
+    public final int getSequenceNumber() {return this.sequenceNumber;}
+
+    /**
+     * Method to check if the message needs an ack by looking at his internal bits
+     * @return true if the message needs an ack
+     */
+    public final boolean needsAck() {
+        return (this.internalBits & MessageUtility.BIT_ACK) == MessageUtility.BIT_ACK;
+    }
 
 }
