@@ -7,6 +7,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
+import polimi.ds.dsnapshot.Exception.SpanningTreeException;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -32,9 +33,10 @@ public class ConnectionManager {
     /**
      * List of active connections
      */
-    private final List<ClientSocketHandler> handlerList;
-    private ClientSocketHandler anchorNodeHandler;
+    private List<ClientSocketHandler> handlerList;
+
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
+    private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
     /**
      * Port of the server
      */
@@ -139,7 +141,7 @@ public class ConnectionManager {
         handlerList.add(handler);
         //send join msg to anchor node
         handler.sendMessage(msg);
-        anchorNodeHandler = handler; //TODO better if this is done when receive ack
+        spt.get().setAnchorNodeHandler(handler); //TODO better if this is done when receive ack
         //TODO wait for ack and add handler to routing table when receive ack and start ping pong
     }
 
@@ -155,12 +157,14 @@ public class ConnectionManager {
         try {
             //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
-        } catch (RoutingTableException e) {
+            spt.get().addChild(handler);
+        } catch (RoutingTableException | SpanningTreeException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
 
         //forward join notify to neighbour
+
         JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(), Arrays.toString(this.getMachineIp()),this.port);
 
         for(ClientSocketHandler h : this.handlerList){
@@ -212,18 +216,19 @@ public class ConnectionManager {
 
     // <editor-fold desc="Exit procedure">
     public synchronized void exitNet() throws IOException {
-        if (handlerList.isEmpty()) return;
-        //select randomly 1 direct connection
-        int randomIndex = ThreadLocalRandom.current().nextInt(handlerList.size());
-        ClientSocketHandler handler = handlerList.get(randomIndex);
+        //reassign all child to the current anchor node of the exiting node
+        ClientSocketHandler handler = spt.get().getAnchorNodeHandler();
 
-        //send exit message with info on the random selected connection and close socket
+        //send exit message to all child
         ExitMsg m = new ExitMsg(handler.getRemoteIp(),handler.getRemotePort());
-        for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(m);
-            h.close();
-            handlerList.remove(h);
-        }
+        sendBroadcastMsg(m);
+
+        //clear handler list
+        handlerList = new ArrayList<>();
+
+        //clear spt
+        spt.set(new SpanningTree());
+
         //clear routing table
         routingTable.get().clearTable();
     }
@@ -235,12 +240,15 @@ public class ConnectionManager {
             handler.close();
             handlerList.remove(handler);
 
+            ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
             if(handler == anchorNodeHandler){
                 //reassign anchor node
+                spt.get().setAnchorNodeHandler(null);
+                this.sendExitNotify(handler.getRemoteIp(), handler.getRemotePort());
                 this.newAnchorNode(msg);
             }else if(anchorNodeHandler != null){
                 //forward exit notify to anchor node only
-                this.sendExitNotify(anchorNodeHandler, handler.getRemoteIp(), handler.getRemotePort());
+                this.sendExitNotify(handler.getRemoteIp(), handler.getRemotePort());
 
                 //TODO send to anchor node only isn't enough, discuss how to avoid message loops
             }
@@ -270,17 +278,27 @@ public class ConnectionManager {
         // Check if there is already a direct connection with the new anchor node.
         if(Objects.equals(newAnchorNextHop.getRemoteIp(), msg.getNewAnchorIp()) && newAnchorNextHop.getRemotePort()==msg.getNewAnchorPort()){
             //TODO: there is already a direct cnt between this node and the anchor -> start ping pong
+            //set new anchor node
+            spt.get().setAnchorNodeHandler(newAnchorNextHop);
             return;
         }
         // No direct connection with the new anchor node; establish one.
         this.joinNet(msg.getNewAnchorIp(), msg.getNewAnchorPort());
     }
-    private void sendExitNotify(ClientSocketHandler handler, String exitIp, int exitPort){
+    private void sendExitNotify(String exitIp, int exitPort){
         ExitNotify exitNotify = new ExitNotify(exitIp, exitPort);
-        handler.sendMessage(exitNotify);
+        sendBroadcastMsg(exitNotify);
     }
 
     // </editor-fold>
+
+    private void sendBroadcastMsg(Message msg){
+        for(ClientSocketHandler h : spt.get().getChildren()) {
+            h.sendMessage(msg);
+        }
+        ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
+        if(anchorNodeHandler != null)anchorNodeHandler.sendMessage(msg);
+    }
 
     // TODO: add the send of a message via the routing table
 
