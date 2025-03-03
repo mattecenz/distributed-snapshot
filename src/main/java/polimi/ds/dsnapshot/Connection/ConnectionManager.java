@@ -6,6 +6,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.io.IOException;
@@ -143,6 +144,7 @@ public class ConnectionManager {
 
             // Here I need to synchronize
             // TODO: this is basically a spinlock, other option is to go to sleep
+            // TODO: also gives problems when the ack is not received -> wait forever ? lol i dont think so
             while(this.ackHandler.isAckIdPresent(seqn));
 
             // Here some other thread will have removed the sequence number from the set so it means that the ack
@@ -341,6 +343,13 @@ public class ConnectionManager {
      */
     synchronized void receiveMessage(Message m, ClientSocketHandler handler){
 
+        // First of all check if the message needs ack, if it does then send back a message.
+        if(m.needsAck()){
+            // TODO: need error checking here, and decide what we should do.
+            //  This message will be sent asynchronously, so we could also send it in another thread.
+            handler.sendMessage(new MessageAck(m.getSequenceNumber()));
+        }
+
         // Switch the ID of the message and do what you need to do:
         // TODO: I have an idea to possibly be more efficient.
         //  Maybe not all messages need a full locking on the object so you can pass it in the internal bits
@@ -382,6 +391,10 @@ public class ConnectionManager {
                     System.err.println("[ConnectionManager] Routing table exception: " + e.getMessage());
                 }
                 break;
+            }
+            case MESSAGE_ACK -> {
+                // If the message received is an ack then remove it from the ack handler
+                this.ackHandler.removeAckId(m.getSequenceNumber());
             }
             case MESSAGE_NOTIMPLEMENTED -> {
                 // TODO: decide, should be the same as default
