@@ -24,23 +24,25 @@ public class PingPongManager {
 
 
     private void ping(){
-        synchronized (pingLock) {
             try {
                 Thread.sleep(pingPongTimeout);
                 sendMessage.accept(new PingPongMessage(false));
                 pingThread.wait(pingPongTimeout);
                 if(!mute) System.out.println("[SocketHandler] Ping sent!");
-                if(!pingPongResponse) {
-                    this.pingFail();
-                    return;
+                synchronized (pingLock) {
+                    if (!pingPongResponse) {
+                        this.pingFail();
+                        return;
+                    }
+                    pingPongResponse = false;
                 }
-                pingPongResponse = false;
                 this.ping();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        }
+
     }
+
     protected void pong(){
         if(!mute) System.out.println("[SocketHandler] Pong sent!");
         this.PongResponse();
@@ -51,8 +53,8 @@ public class PingPongManager {
         if(!mute) System.out.println("[SocketHandler] Pong received!");
         synchronized (pingLock) {
             pingPongResponse = true;
-            pingThread.notify();
         }
+        pingThread.notify();
     }
     //todo: first ping add child
 
