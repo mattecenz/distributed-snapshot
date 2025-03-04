@@ -129,37 +129,49 @@ public class ConnectionManager {
             if(!this.mute) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
             ClientSocketHandler handler = routingTable.get().getNextHop(destNode);
 
-            if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
-            int seqn = m.getSequenceNumber();
-            this.ackHandler.insertAckId(seqn);
-
-            if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
-            boolean b = handler.sendMessage(m);
-
-
-            if(!b) {
-                if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
-                return false;
-            }
-
-            if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
-
-            // Here I need to synchronize
-            // TODO: this is basically a spinlock, other option is to go to sleep
-            // TODO: also gives problems when the ack is not received -> wait forever ? lol i dont think so
-            while(this.ackHandler.isAckIdPresent(seqn));
-
-            // Here some other thread will have removed the sequence number from the set so it means that the ack
-            // Has been received correctly, and it is safe to return
-
-            if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
-
+            return this.sendMessageSynchronized(m,handler);
         } catch (RoutingTableException e) {
             return false;
         }
+    }
+
+    private boolean sendMessageSynchronized(Message m, ClientSocketHandler handler){
+        if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
+        int seqn = m.getSequenceNumber();
+        this.ackHandler.insertAckId(seqn);
+
+        if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
+        boolean b = handler.sendMessage(m);
+
+
+        if(!b) {
+            if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
+            return false;
+        }
+
+        if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
+
+        // Here I need to synchronize
+        // TODO: this is basically a spinlock, other option is to go to sleep
+        // TODO: also gives problems when the ack is not received -> wait forever ? lol i dont think so
+        while(this.ackHandler.isAckIdPresent(seqn));
+
+        // Here some other thread will have removed the sequence number from the set so it means that the ack
+        // Has been received correctly, and it is safe to return
+
+        if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
 
         return true;
     }
+
+    private void sendBroadcastMsg(Message msg){
+        for(ClientSocketHandler h : spt.get().getChildren()) {
+            h.sendMessage(msg);
+        }
+        ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
+        if(anchorNodeHandler != null)anchorNodeHandler.sendMessage(msg);
+    }
+
 
     /**
      * Retrieves the IP address of the local machine.
@@ -191,9 +203,10 @@ public class ConnectionManager {
         ClientSocketHandler handler = new ClientSocketHandler(new Socket(anchorIp,anchorPort, mute), this);
         handler.run();
         handlerList.add(handler);
-        //send join msg to anchor node
-        handler.sendMessage(msg);
-        spt.get().setAnchorNodeHandler(handler); //TODO better if this is done when receive ack
+        //send join msg to anchor node & wait for ack
+        this.sendMessageSynchronized(msg,handler);
+        //handler.sendMessage(msg);
+        spt.get().setAnchorNodeHandler(handler);
         //TODO wait for ack and add handler to routing table when receive ack and start ping pong
     }
 
@@ -209,7 +222,7 @@ public class ConnectionManager {
         try {
             //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
-            spt.get().addChild(handler);
+            spt.get().addChild(handler);//TODO: maybe is better if add child when receive first ping
         } catch (RoutingTableException | SpanningTreeException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
@@ -343,15 +356,6 @@ public class ConnectionManager {
     }
 
     // </editor-fold>
-
-    private void sendBroadcastMsg(Message msg){
-        for(ClientSocketHandler h : spt.get().getChildren()) {
-            h.sendMessage(msg);
-        }
-        ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
-        if(anchorNodeHandler != null)anchorNodeHandler.sendMessage(msg);
-    }
-
     // TODO: add the send of a message via the routing table
 
     /**
