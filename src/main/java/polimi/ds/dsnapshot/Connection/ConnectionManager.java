@@ -6,6 +6,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeException;
 
@@ -38,6 +39,10 @@ public class ConnectionManager {
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
     /**
+     * Reference to the handler of the acks
+     */
+    private final AckHandler ackHandler;
+    /**
      * Port of the server
      */
     private final int port;
@@ -54,6 +59,7 @@ public class ConnectionManager {
      */
     public ConnectionManager(int port){
         this.handlerList = new ArrayList<>();
+        this.ackHandler = new AckHandler();
         this.port = port;
 
         System.out.println("[ConnectionManager] ConnectionManager created successfully...");
@@ -107,6 +113,52 @@ public class ConnectionManager {
         if(!mute) System.out.println("[ConnectionManager] Launching the thread...");
 
         t.start();
+    }
+
+    // TODO: maybe its better if the method is private (called by a generic sendMessage that works as interface)
+    // TODO: refactor well to work with exceptions
+    // TODO: discuss a bit if every message needs the destination ip:port
+    // TODO: there is a problem, the MessageAck is a different class than the Message
+    public boolean sendMessageSynchronized(Message m, String ip, int port){
+
+        if(!this.mute) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
+
+        NetNode destNode = new NetNode(ip, port);
+
+        try {
+            if(!this.mute) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
+            ClientSocketHandler handler = routingTable.get().getNextHop(destNode);
+
+            if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
+            int seqn = m.getSequenceNumber();
+            this.ackHandler.insertAckId(seqn);
+
+            if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
+            boolean b = handler.sendMessage(m);
+
+
+            if(!b) {
+                if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
+                return false;
+            }
+
+            if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
+
+            // Here I need to synchronize
+            // TODO: this is basically a spinlock, other option is to go to sleep
+            // TODO: also gives problems when the ack is not received -> wait forever ? lol i dont think so
+            while(this.ackHandler.isAckIdPresent(seqn));
+
+            // Here some other thread will have removed the sequence number from the set so it means that the ack
+            // Has been received correctly, and it is safe to return
+
+            if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+
+        } catch (RoutingTableException e) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -309,6 +361,13 @@ public class ConnectionManager {
      */
     synchronized void receiveMessage(Message m, ClientSocketHandler handler){
 
+        // First of all check if the message needs ack, if it does then send back a message.
+        if(m.needsAck()){
+            // TODO: need error checking here, and decide what we should do.
+            //  This message will be sent asynchronously, so we could also send it in another thread.
+            handler.sendMessage(new MessageAck(m.getSequenceNumber()));
+        }
+
         // Switch the ID of the message and do what you need to do:
         // TODO: I have an idea to possibly be more efficient.
         //  Maybe not all messages need a full locking on the object so you can pass it in the internal bits
@@ -350,6 +409,10 @@ public class ConnectionManager {
                     System.err.println("[ConnectionManager] Routing table exception: " + e.getMessage());
                 }
                 break;
+            }
+            case MESSAGE_ACK -> {
+                // If the message received is an ack then remove it from the ack handler
+                this.ackHandler.removeAckId(m.getSequenceNumber());
             }
             case MESSAGE_NOTIMPLEMENTED -> {
                 // TODO: decide, should be the same as default
