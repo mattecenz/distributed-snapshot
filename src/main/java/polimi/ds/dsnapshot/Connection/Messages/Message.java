@@ -2,7 +2,8 @@ package polimi.ds.dsnapshot.Connection.Messages;
 
 import java.io.Serializable;
 
-public abstract class Message implements Serializable {
+public abstract class
+Message implements Serializable {
 
     /**
      * Internal bits useful for some potential services

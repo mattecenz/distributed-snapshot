@@ -1,6 +1,7 @@
 package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -24,6 +25,12 @@ class ClientSocketHandler implements Runnable{
      * Input stream
      */
     private ObjectInputStream in;
+
+     /**
+     * ping pong
+     */
+     PingPongManager pingPongManager;
+
     /**
      * Reference to the original connection manager for callback when a message is received
      */
@@ -209,5 +216,7 @@ class ClientSocketHandler implements Runnable{
         return this.socket.getPort();
     }
 
-    
+    public void StartPingPong(){
+        pingPongManager = new PingPongManager(this::sendMessage, mute);
+    }
 }
