@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
+import polimi.ds.dsnapshot.Exception.ConnectionException;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeException;
 
@@ -133,10 +134,13 @@ public class ConnectionManager {
             return this.sendMessageSynchronized(m,handler);
         } catch (RoutingTableException e) {
             return false;
+        } catch (ConnectionException e) {
+            //todo: ack not received
+            return false;
         }
     }
 
-    private boolean sendMessageSynchronized(Message m, ClientSocketHandler handler){
+    protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
         if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
@@ -163,13 +167,15 @@ public class ConnectionManager {
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
             if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+            return true;
         }
 
         // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
-        if(!this.mute) System.out.println("[ConnectionManager] Timeout reached waiting for ack...");
-
-        return true;
+        if(!this.mute){
+            System.out.println("[ConnectionManager] Timeout reached waiting for ack...");
+        }
+        throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
     }
 
     private void sendBroadcastMsg(Message msg){
@@ -212,7 +218,12 @@ public class ConnectionManager {
         handler.run();
         handlerList.add(handler);
         //send join msg to anchor node & wait for ack
-        this.sendMessageSynchronized(msg,handler);
+        try {
+            this.sendMessageSynchronized(msg,handler);
+        } catch (ConnectionException e) {
+            //todo: ack not received
+            return;
+        }
         //handler.sendMessage(msg);
         spt.get().setAnchorNodeHandler(handler);
         handler.startPingPong();
@@ -429,24 +440,14 @@ public class ConnectionManager {
             }
             case MESSAGE_PINGPONG -> {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
-                if(pingPongMessage.isPing()){
-                    if(pingPongMessage.isFistPing()) {
-                        try {
-                            //add the new node as child
-                            this.spt.get().addChild(handler);
-                        } catch (SpanningTreeException e) {
-                            // todo: decide
-                            System.err.println("[ConnectionManager] Spanning tree exception: " + e.getMessage());
-                        }
+                if(pingPongMessage.isFistPing()) {
+                    try {
+                        this.spt.get().addChild(handler);
+                    } catch (SpanningTreeException e) {
+                        // todo: decide
+                        System.err.println("[ConnectionManager] Spanning tree exception: " + e.getMessage());
                     }
-                    else {
-                        // respond to ping only if it is not the first
-                        handler.sendPong();
-                    }
-                    handler.pingResponse();
-                } else {
-                    //manage pong receive
-                    handler.pongResponse();
+                    handler.startPingPong();
                 }
             }
             case null, default -> {

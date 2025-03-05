@@ -1,6 +1,7 @@
 package polimi.ds.dsnapshot;
 
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
+import polimi.ds.dsnapshot.Exception.JavaDSException;
 
 import java.io.IOException;
 
@@ -14,21 +15,21 @@ public class JavaDistributedSnapshot {
         connectionManager.start();
     }
 
-    static public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort){
+    static public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
         try {
             connectionManager.joinNet(anchorNodeIp,anchorNodePort);
         } catch (IOException e) {
-            //todo: manage exception
+            throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
     }
 
-    static public void leaveNetwork(){
+    static public void leaveNetwork() throws JavaDSException{
         applicationLayerInterface = null;
         try {
             connectionManager.exitNet();
         } catch (IOException e) {
-            //todo: manage exception
+            throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
     }
 

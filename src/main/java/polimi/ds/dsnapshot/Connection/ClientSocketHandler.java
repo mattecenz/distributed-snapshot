@@ -29,7 +29,7 @@ class ClientSocketHandler implements Runnable{
      /**
      * ping pong
      */
-     PingPongManager pingPongManager;
+     private PingPongManager pingPongManager;
 
     /**
      * Reference to the original connection manager for callback when a message is received
@@ -217,18 +217,8 @@ class ClientSocketHandler implements Runnable{
     }
 
     protected void startPingPong(){
-        pingPongManager = new PingPongManager(this::sendMessage, mute);
+        pingPongManager = new PingPongManager(manager,this, mute);
     }
 
-    protected void sendPong(){
-        pingPongManager.pong();
-    }
 
-    protected void pongResponse(){
-        pingPongManager.pongResponse();
-    }
-
-    protected void pingResponse(){
-        pingPongManager.pingResponse();
-    }
 }

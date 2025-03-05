@@ -1,99 +1,53 @@
 package polimi.ds.dsnapshot.Connection;
 
-import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
+import polimi.ds.dsnapshot.Exception.ConnectionException;
 
-import java.util.function.Consumer;
+
 
 public class PingPongManager {
-    private final Object pingLock = new Object();
-    private final Object pongLock = new Object();
+    private boolean mute = false;
+    private final ClientSocketHandler handler;
+    private final ConnectionManager manager;
+    private Thread pingThread;
     private final int pingPongTimeout = 5000; //todo: config param
-    Thread pingThread;
-    Thread pongThread;
-    private Boolean pingResponse = false;
-    private boolean pongResponse = false;
 
-    Consumer<Message> sendMessage;
-    boolean mute = false;
 
-    protected PingPongManager(Consumer<Message> sendMessage, boolean mute) {
+    protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean mute) {
         this.mute = mute;
-        this.sendMessage = sendMessage;
-        sendMessage.accept(new PingPongMessage(true, true));
-        pingThread = new Thread(this::ping);
-        pongThread = new Thread(this::waitForPing);
+        manager = connectionManager;
+        this.handler = handler;
+        //send first ping
+        try {
+            manager.sendMessageSynchronized(new PingPongMessage(true),handler);
+        } catch (ConnectionException e) {
+            pingFail();
+            return;
+        }
+        //startThread
+        this.pingThread = new Thread(this::sendPing);
         pingThread.start();
     }
 
-
-    private void ping(){
-            try {
-                while(true) {
-                    Thread.sleep(pingPongTimeout);
-                    sendMessage.accept(new PingPongMessage(false, true));
-                    pingThread.wait(pingPongTimeout);
-                    if (!mute) System.out.println("[SocketHandler] Ping sent!");
-                    synchronized (pingLock) {
-                        if (!pingResponse) {
-                            this.pingFail();
-                            return;
-                        }
-                        pingResponse = false;
-                    }
-                }
-            } catch (InterruptedException e) {
-                //todo: manage exception
-                System.out.println("[SocketHandler] error while waiting for pong " + e.getMessage());
-            }
-
-    }
-
-    protected void pong(){
-        if(!mute) System.out.println("[SocketHandler] Pong sent!");
-        sendMessage.accept(new PingPongMessage(false, false));
-        if(pongThread.isAlive()) pongThread.interrupt();
-        synchronized (pongLock) {
-            pongResponse = false;
-        }
-        pongThread.start();
-    }
-    protected void pongResponse(){
-        if(!mute) System.out.println("[SocketHandler] Pong received!");
-        synchronized (pingLock) {
-            pingResponse = true;
-        }
-        pingThread.notify();
-    }
-
-    protected void pingResponse(){
-        synchronized (pongLock) {
-            pongResponse = true;
-            pongThread.notify();
-        }
-    }
-
-    private void waitForPing(){
+    private void sendPing(){
         try {
-            pongThread.wait(2*pingPongTimeout);
-            synchronized (pongLock) {
-                if(!pongResponse){
-                    this.pongFail();
-                }
+            while (true) {
+                if(!this.mute) System.out.println("[PingPongManager] send ping");
+                Thread.sleep(pingPongTimeout);
+                manager.sendMessageSynchronized(new PingPongMessage(true), handler);
             }
         } catch (InterruptedException e) {
             //todo: manage exception
-            System.out.println("[SocketHandler] error while waiting for pong response" + e.getMessage());
+            System.out.println("[PingPongManager] error while waiting for pong " + e.getMessage());
+        } catch (ConnectionException e){
+            pingFail();
+            return;
         }
     }
 
     private void pingFail(){
-        System.out.println("[SocketHandler] Ping failed!");
+        System.out.println("[PingPongManager] Ping failed!");
         //todo: React to ping pong fail
     }
 
-    private void pongFail(){
-        System.out.println("[SocketHandler] Pong failed!");
-        //todo
-    }
 }
