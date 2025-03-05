@@ -5,6 +5,7 @@ import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.util.Dictionary;
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.PrimitiveIterator;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
@@ -28,6 +29,14 @@ public class RoutingTable {
         if (routingTableFields.get(destination) != null) throw new RoutingTableException("destination already in the table");
 
         routingTableFields.put(destination,nextHopConnection);
+    }
+    protected void printRoutingTable() {
+        System.out.println("Routing Table:");
+        var keys = routingTableFields.keys();
+        while (keys.hasMoreElements()) {
+            NetNode key = keys.nextElement();
+            System.out.println("Node: " + key + " -> Handler: " + routingTableFields.get(key));
+        }
     }
 
     protected void updatePath(NetNode destination, ClientSocketHandler nextHopConnection) throws RoutingTableException {

@@ -7,6 +7,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
+import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeException;
 
@@ -207,7 +208,7 @@ public class ConnectionManager {
         this.sendMessageSynchronized(msg,handler);
         //handler.sendMessage(msg);
         spt.get().setAnchorNodeHandler(handler);
-        //TODO wait for ack and add handler to routing table when receive ack and start ping pong
+        handler.startPingPong();
     }
 
     /**
@@ -222,8 +223,7 @@ public class ConnectionManager {
         try {
             //add node in direct connection list and in routing table
             receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
-            spt.get().addChild(handler);//TODO: maybe is better if add child when receive first ping
-        } catch (RoutingTableException | SpanningTreeException e) {
+        } catch (RoutingTableException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
@@ -235,7 +235,6 @@ public class ConnectionManager {
         for(ClientSocketHandler h : this.handlerList){
             if(h!=handler)h.sendMessage(m);
         }
-
     }
     /**
      * Handles a forwarded join request in the network.
@@ -412,7 +411,6 @@ public class ConnectionManager {
                     // TODO: decide, i dont know what these exceptions do
                     System.err.println("[ConnectionManager] Routing table exception: " + e.getMessage());
                 }
-                break;
             }
             case MESSAGE_ACK -> {
                 // If the message received is an ack then remove it from the ack handler
@@ -421,6 +419,28 @@ public class ConnectionManager {
             case MESSAGE_NOTIMPLEMENTED -> {
                 // TODO: decide, should be the same as default
                 break;
+            }
+            case MESSAGE_PINGPONG -> {
+                PingPongMessage pingPongMessage = (PingPongMessage) m;
+                if(pingPongMessage.isPing()){
+                    if(pingPongMessage.isFistPing()) {
+                        try {
+                            //add the new node as child
+                            this.spt.get().addChild(handler);
+                        } catch (SpanningTreeException e) {
+                            // todo: decide
+                            System.err.println("[ConnectionManager] Spanning tree exception: " + e.getMessage());
+                        }
+                    }
+                    else {
+                        // respond to ping only if it is not the first
+                        handler.sendPong();
+                    }
+                    handler.pingResponse();
+                } else {
+                    //manage pong receive
+                    handler.pongResponse();
+                }
             }
             case null, default -> {
                 // TODO: decide
