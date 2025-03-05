@@ -216,7 +216,19 @@ class ClientSocketHandler implements Runnable{
         return this.socket.getPort();
     }
 
-    public void StartPingPong(){
+    protected void startPingPong(){
         pingPongManager = new PingPongManager(this::sendMessage, mute);
+    }
+
+    protected void sendPong(){
+        pingPongManager.pong();
+    }
+
+    protected void pongResponse(){
+        pingPongManager.pongResponse();
+    }
+
+    protected void pingResponse(){
+        pingPongManager.pingResponse();
     }
 }
