@@ -138,7 +138,8 @@ public class ConnectionManager {
     private boolean sendMessageSynchronized(Message m, ClientSocketHandler handler){
         if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
         int seqn = m.getSequenceNumber();
-        this.ackHandler.insertAckId(seqn);
+        // Insert in the handler the number and the thread to wait
+        this.ackHandler.insertAckId(seqn, Thread.currentThread());
 
         if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
         boolean b = handler.sendMessage(m);
@@ -151,15 +152,21 @@ public class ConnectionManager {
 
         if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
 
-        // Here I need to synchronize
-        // TODO: this is basically a spinlock, other option is to go to sleep
-        // TODO: also gives problems when the ack is not received -> wait forever ? lol i dont think so
-        while(this.ackHandler.isAckIdPresent(seqn));
 
-        // Here some other thread will have removed the sequence number from the set so it means that the ack
-        // Has been received correctly, and it is safe to return
+        try {
+            // Wait for a timeout, if ack has been received then all good, else something bad happened.
+            // TODO: wrap in constant
+            this.wait(5000);
+        } catch (InterruptedException e) {
+            // Here some other thread will have removed the sequence number from the set so it means that the ack
+            // Has been received correctly, and it is safe to return
+            // Still a bit ugly that you capture an exception and resume correctly...
+            if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+        }
 
-        if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+        // If the method is not interrupted it means that the ack has not been received
+        // TODO: handle error of ack
+        if(!this.mute) System.out.println("[ConnectionManager] Timeout reached waiting for ack...");
 
         return true;
     }
