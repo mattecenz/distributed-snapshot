@@ -5,8 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="42a8b4cd-b25b-4504-9fe1-d40331408abd" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/main/java/polimi/ds/dsnapshot/ApplicationLayerInterface.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/polimi/ds/dsnapshot/Connection/PingPongManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/polimi/ds/dsnapshot/Connection/PingPongManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/polimi/ds/dsnapshot/SnapshotInterface.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/polimi/ds/dsnapshot/JavaDistributedSnapshot.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -16,6 +17,7 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
+        <option value="Interface" />
         <option value="Class" />
       </list>
     </option>
@@ -48,6 +50,12 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="RecentsManager">
+    <key name="MoveClassesOrPackagesDialog.RECENTS_KEY">
+      <recent name="polimi.ds.dsnapshot" />
+      <recent name="polimi.ds" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -66,7 +74,8 @@
       <updated>1741108476970</updated>
       <workItem from="1741108478538" duration="1388000" />
       <workItem from="1741109923417" duration="2516000" />
-      <workItem from="1741120928350" duration="108000" />
+      <workItem from="1741120928350" duration="297000" />
+      <workItem from="1741193423185" duration="1990000" />
     </task>
     <servers />
   </component>
