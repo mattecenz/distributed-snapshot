@@ -1,7 +1,10 @@
 package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
-import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
+import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.Events.EventsBroker;
+import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -16,6 +19,7 @@ class ClientSocketHandler implements Runnable{
      * Socket which represents the connection
      */
     private final Socket socket;
+
     /**
      * Output stream
      */
@@ -25,7 +29,10 @@ class ClientSocketHandler implements Runnable{
      * Input stream
      */
     private ObjectInputStream in;
-
+    /**
+     * channel used to forward application message to application layer
+     */
+    private Event messageInputChannel;
      /**
      * ping pong
      */
@@ -66,6 +73,7 @@ class ClientSocketHandler implements Runnable{
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
+        this.prepareMessageInputEvent();
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
     }
@@ -78,6 +86,7 @@ class ClientSocketHandler implements Runnable{
     public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
         this(socket, manager);
         this.mute = mute;
+        this.prepareMessageInputEvent();
     }
 
     /**
@@ -87,6 +96,22 @@ class ClientSocketHandler implements Runnable{
      */
     public ClientSocketHandler(Socket socket) {
         this(socket, null);
+        this.prepareMessageInputEvent();
+    }
+
+
+    private void prepareMessageInputEvent(){
+        try {
+            messageInputChannel = EventsBroker.createEventChannel(this.getRemoteIp()+":"+this.getRemotePort());
+        } catch (EventException e) {
+            //todo decide
+            throw new RuntimeException(e);
+        }
+        messageInputChannel.subscribe(JavaDistributedSnapshot::ReceiveMessage);
+    }
+
+    public Event getMessageInputChannel() {
+        return messageInputChannel;
     }
 
     /**
