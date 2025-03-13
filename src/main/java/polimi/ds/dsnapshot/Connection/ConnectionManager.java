@@ -25,7 +25,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
-
+import java.util.logging.Handler;
+import polimi.ds.dsnapshot.Events.Event;
 
 /**
  * The connection manager consists of a TCP server socket who can receive connections.
@@ -373,7 +374,17 @@ public class ConnectionManager {
     }
 
     // </editor-fold>
-    // TODO: add the send of a message via the routing table
+
+    public void sendMessage(Message message, String destinationIp, int destinationPort){
+        //todo ackMessage
+        NetNode n = new NetNode(destinationIp, destinationPort);
+        try {
+            ClientSocketHandler handler = routingTable.get().getNextHop(n);
+            handler.sendMessage(message);
+        } catch (RoutingTableException e) {
+            //todo if node not in routing table
+        }
+    }
 
     /**
      * Method invoked when a client handler receives a message. This method is SYNCHRONIZED on the entire object
@@ -449,6 +460,11 @@ public class ConnectionManager {
                     }
                     handler.startPingPong();
                 }
+            }
+            case MESSAGE_APP -> {
+                //todo if message require to be forward
+                Event messageInputChannel = handler.getMessageInputChannel();
+                messageInputChannel.publish(m);
             }
             case null, default -> {
                 // TODO: decide

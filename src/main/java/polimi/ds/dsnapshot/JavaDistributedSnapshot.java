@@ -1,9 +1,13 @@
 package polimi.ds.dsnapshot;
 
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
+import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
+import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
+import java.io.Serializable;
 
 public class JavaDistributedSnapshot {
     private static ConnectionManager connectionManager;
@@ -33,11 +37,15 @@ public class JavaDistributedSnapshot {
         }
     }
 
-    static public void sendMessage(byte[] messageContent, boolean requireAck){
-        //todo
+    static public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int DestinationPort) throws IOException {
+        byte[] applicationMessageContente = SerializationUtils.serialize(messageContent);
+
+        ApplicationMessage applicationMessage = new ApplicationMessage(applicationMessageContente, destinationIp, DestinationPort, requireAck);
+        connectionManager.sendMessage(applicationMessage, destinationIp, DestinationPort);
     }
 
-    static public void ReceiveMessage(byte[] messageContent){
+    static public void ReceiveMessage(Message message){
+        byte [] messageContent = ((ApplicationMessage) message).getApplicationContent();
         applicationLayerInterface.receiveMessage(messageContent);
     }
 
