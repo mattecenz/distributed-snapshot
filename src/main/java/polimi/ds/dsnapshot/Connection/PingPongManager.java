@@ -2,14 +2,13 @@ package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
-
+import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 
 public class PingPongManager {
     private boolean mute = false;
     private final ClientSocketHandler handler;
     private final ConnectionManager manager;
-    private Thread pingThread;
     private final int pingPongTimeout = 5000; //todo: config param
 
 
@@ -25,8 +24,7 @@ public class PingPongManager {
             return;
         }
         //startThread
-        this.pingThread = new Thread(this::sendPing);
-        pingThread.start();
+        ThreadPool.submit(this::sendPing);
     }
 
     private void sendPing(){

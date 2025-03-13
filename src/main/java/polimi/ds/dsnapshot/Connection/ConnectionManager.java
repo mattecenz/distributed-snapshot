@@ -27,6 +27,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Handler;
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 /**
  * The connection manager consists of a TCP server socket who can receive connections.
@@ -87,22 +88,16 @@ public class ConnectionManager {
             try(ServerSocket serverSocket = new ServerSocket(this.port)){
                 if(!this.mute) System.out.println("[ConnectionManager] Created listening socket on port "+this.port+" ...");
 
-                try(ExecutorService executor = Executors.newCachedThreadPool()){
-                    if(!this.mute) System.out.println("[ConnectionManager] Created thread pool...");
+                if(!this.mute) System.out.println("[ConnectionManager] Created thread pool...");
 
-                    while(true){
-                        if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
-                        Socket socket = serverSocket.accept();
-                        if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
-                        ClientSocketHandler handler = new ClientSocketHandler(socket, this);
-                        this.handlerList.add(handler);
-                        executor.submit(handler);
-                        if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
-                    }
-
-                }catch (RuntimeException e){
-                    // TODO: what to do ?
-                    System.err.println("[ConnectionManager] Runtime exception: "+e.getMessage());
+                while(true){
+                    if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
+                    Socket socket = serverSocket.accept();
+                    if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
+                    ClientSocketHandler handler = new ClientSocketHandler(socket, this);
+                    this.handlerList.add(handler);
+                    ThreadPool.submit(handler);
+                    if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
                 }
 
             }catch (IOException e){

@@ -49,5 +49,9 @@ public class JavaDistributedSnapshot {
         applicationLayerInterface.receiveMessage(messageContent);
     }
 
+    static public ApplicationLayerInterface getApplicationLayerInterface(){
+        return applicationLayerInterface;
+    }
+
     // public void sendMessage()
 }

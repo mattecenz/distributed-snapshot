@@ -1,4 +1,4 @@
-﻿package polimi.ds.dsnapshot.Connection.Messages;
+package polimi.ds.dsnapshot.Connection.Messages;
 
 public class ApplicationMessage extends Message {
     private final byte[] applicationContent;

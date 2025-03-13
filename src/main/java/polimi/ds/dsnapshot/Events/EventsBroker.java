@@ -2,8 +2,7 @@ package polimi.ds.dsnapshot.Events;
 
 import polimi.ds.dsnapshot.Exception.EventException;
 
-import java.util.Dictionary;
-import java.util.Hashtable;
+import java.util.*;
 
 public class EventsBroker {
     private static Dictionary<String, Event> eventChannels = new Hashtable<>();
@@ -40,6 +39,11 @@ public class EventsBroker {
         }
 
         eventChannels.remove(channelName);
+    }
+
+    public static List<String> getAllEventChannelNames() {
+        Enumeration<String> channelNames = eventChannels.keys();
+        return new ArrayList<>(Collections.singletonList(channelNames.nextElement()));
     }
 
     public static void removeAllEventsChannel(){
