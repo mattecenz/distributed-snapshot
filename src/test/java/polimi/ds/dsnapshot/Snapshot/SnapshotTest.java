@@ -1,7 +1,6 @@
 package polimi.ds.dsnapshot.Snapshot;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
@@ -14,9 +13,11 @@ import polimi.ds.dsnapshot.Connection.*;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.Serializable;
 import java.net.Socket;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -38,10 +39,11 @@ public class SnapshotTest {
 
 
         snapshotManger = new SnapshotManager(connectionManagerMock);
+        System.out.println(" ");
     }
 
     @Test
-    public void saveApplicationState() throws JavaDSException, InterruptedException {
+    public void saveApplicationStateTest() throws JavaDSException, InterruptedException {
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         exampleApplicationInterface.state.i=1;
 
@@ -72,9 +74,16 @@ public class SnapshotTest {
                 latch.countDown();
             }
         }).start();
-
         assertTrue(latch.await(5, TimeUnit.SECONDS));
 
+        Thread.sleep(1000);//to be sure the file is saved
+
+        byte[] applicationState = SnapshotManager.getLastSnapshot().getApplicationState();
+
+        assertDoesNotThrow(() -> {
+            ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
+        });
     }
 
 

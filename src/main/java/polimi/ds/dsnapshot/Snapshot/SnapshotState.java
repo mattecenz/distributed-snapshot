@@ -25,4 +25,9 @@ public class SnapshotState implements Serializable {
     public void setMessageStack(Stack<Message> messageStack) {
         this.messageInputStack = messageStack;
     }
+
+
+    public byte[] getApplicationState() {
+        return applicationState;
+    }
 }

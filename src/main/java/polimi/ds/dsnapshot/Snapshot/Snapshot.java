@@ -16,17 +16,20 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 
 public class Snapshot {
     private final Object lock = new Object();
 
-    String snapshotPath = "./snapshots/"; //todo config param
+    private String snapshotPath = "./snapshots/"; //todo config param
 
     private final Stack<Message> messageInputStack = new Stack<>();
     private final Consumer<Message> pushMessageReference = this::pushMessage;
@@ -34,7 +37,14 @@ public class Snapshot {
     private final List<Event> inputChannels = new ArrayList<>();
 
     public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager) throws EventException, IOException {
-        this.snapshotPath += snapshotCode +".bin";
+        // Get the current time as a ZonedDateTime
+        ZonedDateTime now = ZonedDateTime.now();
+
+        // Format the timestamp into a string, excluding seconds and replacing colons with underscores
+        String timestampStr = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm'Z'").format(now);
+
+        // File name & path
+        this.snapshotPath += snapshotCode + "_" + timestampStr + ".bin";
 
         ApplicationLayerInterface applicationLayerInterface = JavaDistributedSnapshot.getApplicationLayerInterface();
         byte[] applicationState = SerializationUtils.serialize(applicationLayerInterface.getApplicationState());

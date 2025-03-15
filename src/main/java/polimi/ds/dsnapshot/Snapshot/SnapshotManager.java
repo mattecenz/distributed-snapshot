@@ -3,18 +3,25 @@ package polimi.ds.dsnapshot.Snapshot;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
 import java.io.File;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.*;
 
 public class SnapshotManager {
     private Dictionary<String, Snapshot> snapshots = new Hashtable<>();
     private final ConnectionManager connectionManager;
 
-    String snapshotPath = "./snapshots/"; //todo config param
+    private static final String snapshotPath = "./snapshots/"; //todo config param
 
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
@@ -53,4 +60,52 @@ public class SnapshotManager {
             //todo decide
         }
     }
+
+    public static SnapshotState getLastSnapshot() {
+        File file = getLastSnapshotFile();
+        return parseSnapshotFile(file);
+    }
+    private static File getLastSnapshotFile(){
+        File snapshotsDir = new File("./snapshots");
+
+        // List all files in the directory that match the pattern
+        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}Z\\.bin"));
+
+        if (files == null || files.length == 0) {
+            System.err.println("No snapshots found");
+            return null; // No files found
+        }
+
+        // Sort files based on timestamp in their names
+        File file = Arrays.stream(files)
+                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
+                .orElse(null);
+        return file;
+    }
+
+    private static SnapshotState parseSnapshotFile(File file) {
+        byte[] fileContent;
+        SnapshotState lastSnapshot = null;
+        try  {
+            FileInputStream fis = new FileInputStream(file);
+            fileContent = fis.readAllBytes();
+            lastSnapshot = (SnapshotState) SerializationUtils.deserialize(fileContent);
+            fis.close();
+        }catch (Exception e){
+            //TODO decide
+            System.err.println("execption: " + e);
+            return null;
+        }
+        return lastSnapshot;
+    }
+
+    private static ZonedDateTime extractTimestampFromFilename(File file) {
+        String filename = file.getName();
+        String timestampStr = filename.split("_")[1].replace("Z.bin", "");
+
+        // Parse the timestamp string to ZonedDateTime
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm'Z'");
+        return ZonedDateTime.parse(timestampStr + "'Z'", formatter);
+    }
+
 }
