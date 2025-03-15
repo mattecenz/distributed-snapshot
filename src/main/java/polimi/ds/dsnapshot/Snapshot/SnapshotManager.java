@@ -6,6 +6,9 @@ import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Dictionary;
@@ -69,7 +72,7 @@ public class SnapshotManager {
         File snapshotsDir = new File("./snapshots");
 
         // List all files in the directory that match the pattern
-        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}Z\\.bin"));
+        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
 
         if (files == null || files.length == 0) {
             System.err.println("No snapshots found");
@@ -101,11 +104,17 @@ public class SnapshotManager {
 
     private static ZonedDateTime extractTimestampFromFilename(File file) {
         String filename = file.getName();
-        String timestampStr = filename.split("_")[1].replace("Z.bin", "");
+        // Extract the timestamp part and remove the ".bin"
+        String timestampStr = filename.split("_")[1].replace(".bin", "");
 
-        // Parse the timestamp string to ZonedDateTime
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm'Z'");
-        return ZonedDateTime.parse(timestampStr + "'Z'", formatter);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
+        // Parse into LocalDateTime and then combine with the system default zone
+        LocalDateTime localDateTime = LocalDateTime.parse(timestampStr, formatter);
+        return ZonedDateTime.of(localDateTime, ZoneId.systemDefault());
     }
+
+
+
+
 
 }

@@ -20,6 +20,7 @@ import java.net.Socket;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.Random;
 
 public class SnapshotTest {
 
@@ -45,7 +46,8 @@ public class SnapshotTest {
     @Test
     public void saveApplicationStateTest() throws JavaDSException, InterruptedException {
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
-        exampleApplicationInterface.state.i=1;
+        Random rand = new Random();
+        exampleApplicationInterface.state.i = rand.nextInt();  // This will give a random integer
 
         //set the application interface allowing snapshot to retrieve the application state
         JavaDistributedSnapshot.joinNetwork(exampleApplicationInterface,"friggioggi",0);
@@ -60,8 +62,6 @@ public class SnapshotTest {
         mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
         when(clientSocketHandlerMock.getRemoteIp()).thenReturn("127.0.0.1");
         when(clientSocketHandlerMock.getRemotePort()).thenReturn(1234);
-
-
 
         assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggieri:0"));
 
@@ -82,6 +82,7 @@ public class SnapshotTest {
 
         assertDoesNotThrow(() -> {
             ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            System.out.println(savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
     }
