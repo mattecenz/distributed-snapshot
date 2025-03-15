@@ -21,12 +21,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Handler;
+
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 /**
@@ -42,6 +41,7 @@ public class ConnectionManager {
 
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
+    private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
     /**
      * Reference to the handler of the acks
      */
@@ -468,4 +468,13 @@ public class ConnectionManager {
 
     }
 
+    // <editor-fold desc="Static Getter">
+    synchronized public RoutingTable getRoutingTable(){
+        return routingTable.get();
+    }
+
+    synchronized public SpanningTree getSpt(){
+        return spt.get();
+    }
+    // </editor-fold>
 }

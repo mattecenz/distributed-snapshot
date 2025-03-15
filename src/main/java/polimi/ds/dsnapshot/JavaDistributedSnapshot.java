@@ -1,5 +1,6 @@
 package polimi.ds.dsnapshot;
 
+import org.jetbrains.annotations.TestOnly;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
@@ -26,6 +27,11 @@ public class JavaDistributedSnapshot {
         } catch (IOException e) {
             throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
+    }
+
+    @TestOnly
+    public static void setConnectionManager(ConnectionManager connectionManager) {
+        JavaDistributedSnapshot.connectionManager = connectionManager;
     }
 
     static public void leaveNetwork() throws JavaDSException{

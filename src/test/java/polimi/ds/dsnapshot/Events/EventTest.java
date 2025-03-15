@@ -20,10 +20,10 @@ public class EventTest {
         m1 = null;
         m2 = null;
 
-        e1 = new Event();
+        e1 = new Event("testE1");
         c1 = this::e1Callback;
         e1.subscribe(c1);
-        e2 = new Event();
+        e2 = new Event("testE2");
         c2 = this::e2Callback;
         e2.subscribe(c2);
     }

@@ -1,12 +1,13 @@
 package polimi.ds.dsnapshot.Connection;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Represents a network node with an IP address and a port.
  * The class provides getters, setters, and methods to compare instances (equals and hashCode).
  */
-public class NetNode {
+public class NetNode implements Serializable {
     private String IP;
     private int port;
 

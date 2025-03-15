@@ -13,7 +13,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class ClientSocketHandler implements Runnable{
+public class ClientSocketHandler implements Runnable{
 
     /**
      * Socket which represents the connection

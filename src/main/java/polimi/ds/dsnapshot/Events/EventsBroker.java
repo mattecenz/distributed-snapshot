@@ -19,7 +19,7 @@ public class EventsBroker {
             throw new EventException("channel already exist");
         }
 
-        Event e = new Event();
+        Event e = new Event(channelName);
         eventChannels.put(channelName, e);
         return e;
     }

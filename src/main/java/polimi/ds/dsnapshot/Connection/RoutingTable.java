@@ -3,6 +3,7 @@ package polimi.ds.dsnapshot.Connection;
 import polimi.ds.dsnapshot.Connection.NetNode;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
+import java.io.Serializable;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.Map;
@@ -10,10 +11,19 @@ import java.util.PrimitiveIterator;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 
-public class RoutingTable {
+public class RoutingTable implements Serializable {
     private Dictionary<NetNode, ClientSocketHandler> routingTableFields;
 
-    protected RoutingTable(){
+    // Copy constructor
+    public RoutingTable(RoutingTable other) {
+        this.routingTableFields = new java.util.Hashtable<>();
+        var keys = other.routingTableFields.keys();
+        while (keys.hasMoreElements()) {
+            NetNode key = keys.nextElement();
+            this.routingTableFields.put(key, other.routingTableFields.get(key));
+        }
+    }
+    public RoutingTable(){
         routingTableFields = new java.util.Hashtable<>();
     }
 

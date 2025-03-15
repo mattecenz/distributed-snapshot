@@ -10,6 +10,11 @@ import java.util.function.Consumer;
 //TODO: is necessary to sync?
 public class Event {
     private final List<CallbackRunner> callbacks = new ArrayList<>();
+    private final String channelName;
+
+    public Event(String channelName) {
+        this.channelName = channelName;
+    }
 
     public void subscribe(Consumer<Message> callback) {
         callbacks.add(new CallbackRunner(callback));
