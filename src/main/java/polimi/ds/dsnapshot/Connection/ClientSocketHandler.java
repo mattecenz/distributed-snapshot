@@ -67,13 +67,13 @@ public class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param manager reference to the connection manager
      */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager) {
+    public ClientSocketHandler(Socket socket, ConnectionManager manager, JavaDistributedSnapshot javaDistributedSnapshot) {
         this.socket = socket;
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
-        this.prepareMessageInputEvent();
+        this.prepareMessageInputEvent(javaDistributedSnapshot);
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
     }
@@ -83,10 +83,9 @@ public class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param mute specify if the handler is mute or not
      */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
-        this(socket, manager);
+    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute, JavaDistributedSnapshot javaDistributedSnapshot) {
+        this(socket, manager, javaDistributedSnapshot);
         this.mute = mute;
-        this.prepareMessageInputEvent();
     }
 
     /**
@@ -94,20 +93,19 @@ public class ClientSocketHandler implements Runnable{
      * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
      * @param socket socket to be managed
      */
-    public ClientSocketHandler(Socket socket) {
-        this(socket, null);
-        this.prepareMessageInputEvent();
+    public ClientSocketHandler(Socket socket, JavaDistributedSnapshot javaDistributedSnapshot) {
+        this(socket, null, javaDistributedSnapshot);
     }
 
 
-    private void prepareMessageInputEvent(){
+    private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
         try {
             messageInputChannel = EventsBroker.createEventChannel(this.getRemoteIp()+":"+this.getRemotePort());
         } catch (EventException e) {
             //todo decide
             throw new RuntimeException(e);
         }
-        messageInputChannel.subscribe(JavaDistributedSnapshot::ReceiveMessage);
+        messageInputChannel.subscribe(javaDistributedSnapshot::ReceiveMessage);
     }
 
     public Event getMessageInputChannel() {

@@ -92,6 +92,8 @@ public class Snapshot {
     }
 
     private void saveMessages(){
+        SnapshotState oldSnapshotState = SnapshotManager.getLastSnapshot();
+        if(oldSnapshotState == null){}
         //todo
     }
 }

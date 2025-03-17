@@ -15,15 +15,18 @@ import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.net.Socket;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
 
 public class SnapshotTest {
-
+    private static final String snapshotPath = "./snapshots/"; //todo config param
     @Mock
     private ConnectionManager connectionManagerMock;
     @Mock
@@ -88,6 +91,12 @@ public class SnapshotTest {
     }
 
 
+
+    @Test
+    public void testGetSnapshotNull() throws IOException {
+        System.out.println("this test is going to delete all snapshots \n want to procede [Y\n]:");
+        this.deleteAllFiles(snapshotPath);
+    }
     private static class ExampleApplicationInterface implements ApplicationLayerInterface {
         public ExampleApplicationLayerState state = new ExampleApplicationLayerState();
         @Override
@@ -103,6 +112,22 @@ public class SnapshotTest {
 
     private static class ExampleApplicationLayerState implements Serializable {
         public Integer i;
+    }
+
+    private void deleteAllFiles(String directoryPath) throws IOException {
+        Path dirPath = Paths.get(directoryPath);
+
+        if (Files.exists(dirPath) && Files.isDirectory(dirPath)) {
+            Files.walkFileTree(dirPath, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } else {
+            System.out.println("Directory does not exist: " + directoryPath);
+        }
     }
 
 }

@@ -6,6 +6,7 @@ import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
+import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -16,7 +17,7 @@ public class JavaDistributedSnapshot {
 
     //todo find better name
     static public void startSocketConnection(int hostPort) {
-        connectionManager = new ConnectionManager(hostPort);
+        connectionManager = new ConnectionManager(hostPort, this);
         connectionManager.start();
     }
 
@@ -50,9 +51,11 @@ public class JavaDistributedSnapshot {
         connectionManager.sendMessage(applicationMessage, destinationIp, DestinationPort);
     }
 
-    static public void ReceiveMessage(Message message){
-        byte [] messageContent = ((ApplicationMessage) message).getApplicationContent();
-        applicationLayerInterface.receiveMessage(messageContent);
+    public void ReceiveMessage(Message message){
+        ThreadPool.submit(() ->{
+            byte [] messageContent = ((ApplicationMessage) message).getApplicationContent();
+            applicationLayerInterface.receiveMessage(messageContent);
+        });
     }
 
     static public ApplicationLayerInterface getApplicationLayerInterface(){

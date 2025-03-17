@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -38,6 +39,8 @@ public class ConnectionManager {
      * List of active connections
      */
     private List<ClientSocketHandler> handlerList;
+
+    private final JavaDistributedSnapshot javaDistributedSnapshot;
 
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
@@ -61,10 +64,11 @@ public class ConnectionManager {
     /**
      * Constructor of the connection manager
      */
-    public ConnectionManager(int port){
+    public ConnectionManager(int port, JavaDistributedSnapshot javaDistributedSnapshot){
         this.handlerList = new ArrayList<>();
         this.ackHandler = new AckHandler();
         this.port = port;
+        this.javaDistributedSnapshot = javaDistributedSnapshot;
 
         System.out.println("[ConnectionManager] ConnectionManager created successfully...");
     }
@@ -73,8 +77,8 @@ public class ConnectionManager {
      * Constructor of the connection manager
      * @param mute specify if the manager is muted or not
      */
-    public ConnectionManager(int port, boolean mute){
-        this(port);
+    public ConnectionManager(int port, boolean mute, JavaDistributedSnapshot javaDistributedSnapshot){
+        this(port, javaDistributedSnapshot);
         this.mute=mute;
     }
 
@@ -94,7 +98,7 @@ public class ConnectionManager {
                     if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
                     Socket socket = serverSocket.accept();
                     if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
-                    ClientSocketHandler handler = new ClientSocketHandler(socket, this);
+                    ClientSocketHandler handler = new ClientSocketHandler(socket, this, javaDistributedSnapshot);
                     this.handlerList.add(handler);
                     ThreadPool.submit(handler);
                     if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
@@ -210,7 +214,7 @@ public class ConnectionManager {
     public synchronized void joinNet(String anchorIp, int anchorPort) throws IOException {
         JoinMsg msg = new JoinMsg(Arrays.toString(getMachineIp()), this.port);
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(new Socket(anchorIp,anchorPort, mute), this);
+        ClientSocketHandler handler = new ClientSocketHandler(new Socket(anchorIp,anchorPort, mute), this, javaDistributedSnapshot);
         handler.run();
         handlerList.add(handler);
         //send join msg to anchor node & wait for ack
@@ -261,7 +265,7 @@ public class ConnectionManager {
         try {
             if(randomValue < this.directConnectionProbability){
                 //create socket connection with the joiner to instantiate a new direct connection
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(msg.getIp(),msg.getPort(), mute), this);
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(msg.getIp(),msg.getPort(), mute), this, javaDistributedSnapshot);
                 joinerHandler.run();
                 //send to joiner a message to create a direct connection
                 joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
