@@ -6,6 +6,8 @@ import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.NetNode;
 import polimi.ds.dsnapshot.Connection.RoutingTable;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
@@ -32,7 +34,7 @@ public class Snapshot {
     private String snapshotPath = "./snapshots/"; //todo config param
     private final SnapshotState snapshotState;
     //private final Stack<Message> messageInputStack = new Stack<>();
-    private final Consumer<Message> pushMessageReference = this::pushMessage;
+    private final Consumer<CallbackContent> pushMessageReference = this::pushMessage;
 
     private final List<Event> inputChannels = new ArrayList<>();
 
@@ -67,9 +69,10 @@ public class Snapshot {
         }
     }
 
-    public void pushMessage(Message message) {
+    public void pushMessage(CallbackContent callbackContent) {
+        CallbackContentWithName callbackContentWithName = (CallbackContentWithName) callbackContent;
         synchronized (lock) {
-            snapshotState.pushMessage(message);
+            snapshotState.pushMessage(callbackContentWithName.getCallBackMessage());
         }
     }
 

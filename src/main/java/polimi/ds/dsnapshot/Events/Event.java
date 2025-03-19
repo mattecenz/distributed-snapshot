@@ -1,6 +1,8 @@
 package polimi.ds.dsnapshot.Events;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,28 +18,29 @@ public class Event {
         this.channelName = channelName;
     }
 
-    public void subscribe(Consumer<Message> callback) {
+    public void subscribe(Consumer<CallbackContent> callback) {
         callbacks.add(new CallbackRunner(callback));
     }
 
-    public void unsubscribe(Consumer<Message> callback) {
+    public void unsubscribe(Consumer<CallbackContent> callback) {
         callbacks.removeIf(runner -> Objects.equals(runner.callback, callback));
     }
 
     public void publish(Message message) {
         for (CallbackRunner callback : callbacks) {
-            callback.call(message);
+            callback.call(message, channelName);
         }
     }
 
     private static class CallbackRunner{
-        private Consumer<Message> callback;
-        public CallbackRunner(Consumer<Message> callback) {
+        private Consumer<CallbackContent> callback;
+        public CallbackRunner(Consumer<CallbackContent> callback) {
             this.callback = callback;
         }
 
-        public void call(Message message) {
-            callback.accept(message);
+        public void call(Message message, String channelName) {
+            CallbackContentWithName callbackContent = new CallbackContentWithName(message, channelName);
+            callback.accept(callbackContent);
         }
 
     }

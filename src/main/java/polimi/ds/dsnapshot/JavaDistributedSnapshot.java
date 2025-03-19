@@ -4,6 +4,7 @@ import org.jetbrains.annotations.TestOnly;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
@@ -64,9 +65,9 @@ public class JavaDistributedSnapshot{
         connectionManager.sendMessage(applicationMessage, destinationIp, DestinationPort);
     }
 
-    public void ReceiveMessage(Message message){
+    public void ReceiveMessage(CallbackContent callbackContent){
         ThreadPool.submit(() ->{
-            byte [] messageContent = ((ApplicationMessage) message).getApplicationContent();
+            byte [] messageContent = ((ApplicationMessage) callbackContent.getCallBackMessage()).getApplicationContent();
             applicationLayerInterface.receiveMessage(messageContent);
         });
     }
