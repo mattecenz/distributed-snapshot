@@ -11,17 +11,30 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 import java.io.IOException;
 import java.io.Serializable;
 
-public class JavaDistributedSnapshot {
+public class JavaDistributedSnapshot{
+    private static JavaDistributedSnapshot instance;
+
     private static ConnectionManager connectionManager;
     private static ApplicationLayerInterface applicationLayerInterface;
 
     //todo find better name
-    static public void startSocketConnection(int hostPort) {
-        connectionManager = new ConnectionManager(hostPort, this);
+
+    private JavaDistributedSnapshot() {}
+
+    public synchronized static JavaDistributedSnapshot getInstance() {
+        if (instance == null) {
+            instance = new JavaDistributedSnapshot();
+        }
+
+        return instance;
+    }
+
+    public void startSocketConnection(int hostPort) {
+        connectionManager = new ConnectionManager(hostPort);
         connectionManager.start();
     }
 
-    static public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
+    public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
         try {
             connectionManager.joinNet(anchorNodeIp,anchorNodePort);
@@ -31,11 +44,11 @@ public class JavaDistributedSnapshot {
     }
 
     @TestOnly
-    public static void setConnectionManager(ConnectionManager connectionManager) {
+    public void setConnectionManager(ConnectionManager connectionManager) {
         JavaDistributedSnapshot.connectionManager = connectionManager;
     }
 
-    static public void leaveNetwork() throws JavaDSException{
+    public void leaveNetwork() throws JavaDSException{
         applicationLayerInterface = null;
         try {
             connectionManager.exitNet();
@@ -44,7 +57,7 @@ public class JavaDistributedSnapshot {
         }
     }
 
-    static public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int DestinationPort) throws IOException {
+    public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int DestinationPort) throws IOException {
         byte[] applicationMessageContente = SerializationUtils.serialize(messageContent);
 
         ApplicationMessage applicationMessage = new ApplicationMessage(applicationMessageContente, destinationIp, DestinationPort, requireAck);
@@ -58,7 +71,7 @@ public class JavaDistributedSnapshot {
         });
     }
 
-    static public ApplicationLayerInterface getApplicationLayerInterface(){
+    public ApplicationLayerInterface getApplicationLayerInterface(){
         return applicationLayerInterface;
     }
 

@@ -30,8 +30,8 @@ public class Snapshot {
     private final Object lock = new Object();
 
     private String snapshotPath = "./snapshots/"; //todo config param
-
-    private final Stack<Message> messageInputStack = new Stack<>();
+    private final SnapshotState snapshotState;
+    //private final Stack<Message> messageInputStack = new Stack<>();
     private final Consumer<Message> pushMessageReference = this::pushMessage;
 
     private final List<Event> inputChannels = new ArrayList<>();
@@ -46,12 +46,19 @@ public class Snapshot {
         // File name & path
         this.snapshotPath += snapshotCode + "_" + timestampStr + ".bin";
 
-        ApplicationLayerInterface applicationLayerInterface = JavaDistributedSnapshot.getApplicationLayerInterface();
+        JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
+        ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
         byte[] applicationState = SerializationUtils.serialize(applicationLayerInterface.getApplicationState());
         ClientSocketHandler anchorNodeAndler = connectionManager.getSpt().getAnchorNodeHandler();
 
         NetNode anchorNode = new NetNode(anchorNodeAndler.getRemoteIp(),anchorNodeAndler.getRemotePort());
-        ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
+        snapshotState = new SnapshotState(anchorNode,connectionManager.getRoutingTable(),applicationState);
+        //ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
+
+        if(eventNames.isEmpty()) {
+            ThreadPool.submit(this::endSnapshot);
+            return;
+        }
 
         for (String eventName : eventNames) {
             Event event = EventsBroker.getEventChannel(eventName);
@@ -62,7 +69,7 @@ public class Snapshot {
 
     public void pushMessage(Message message) {
         synchronized (lock) {
-            messageInputStack.push(message);
+            snapshotState.pushMessage(message);
         }
     }
 
@@ -73,13 +80,11 @@ public class Snapshot {
 
         if(!inputChannels.isEmpty()) return;
 
-        //end snapshot
-        ThreadPool.submit(this::saveMessages);
+        ThreadPool.submit(this::endSnapshot);
     }
 
-    private void saveApplicationState(NetNode anchorNode, RoutingTable routingTable, byte[] applicationState) {
+    private void endSnapshot() {
         try {
-            SnapshotState snapshotState = new SnapshotState(anchorNode,routingTable,applicationState);
             byte[] fileContent = SerializationUtils.serialize(snapshotState);
 
             try(FileOutputStream fos = new FileOutputStream(snapshotPath)){
@@ -89,11 +94,5 @@ public class Snapshot {
             System.err.println(e.getMessage());
             //todo decide
         }
-    }
-
-    private void saveMessages(){
-        SnapshotState oldSnapshotState = SnapshotManager.getLastSnapshot();
-        if(oldSnapshotState == null){}
-        //todo
     }
 }

@@ -22,11 +22,14 @@ public class SnapshotState implements Serializable {
         this.applicationState = applicationState;
     }
 
-    public void setMessageStack(Stack<Message> messageStack) {
-        this.messageInputStack = messageStack;
+    public void pushMessage(Message message) {
+        messageInputStack.push(message);
     }
 
 
+    public Stack<Message> getMessageInputStack() {
+        return messageInputStack;
+    }
     public byte[] getApplicationState() {
         return applicationState;
     }

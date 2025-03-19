@@ -8,7 +8,6 @@ import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Dictionary;
@@ -16,12 +15,11 @@ import java.util.Hashtable;
 import java.util.List;
 import java.io.File;
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
-import java.util.stream.*;
 
 public class SnapshotManager {
     private Dictionary<String, Snapshot> snapshots = new Hashtable<>();
+    //TODO: remove snapshot when ends
     private final ConnectionManager connectionManager;
 
     private static final String snapshotPath = "./snapshots/"; //todo config param
@@ -38,7 +36,7 @@ public class SnapshotManager {
         }
     }
 
-    public synchronized void ManageSnapshotToken(String snapshotCode, String channelIp, int channelPort) {
+    public synchronized void manageSnapshotToken(String snapshotCode, String channelIp, int channelPort) {
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
             startNewSnapshot(snapshotCode, channelIp, channelPort);
@@ -58,17 +56,22 @@ public class SnapshotManager {
         eventNames.remove(channelIp+":"+channelPort);
         try {
             Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager);
+            snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
             System.err.println(e.getMessage());
             //todo decide
         }
     }
 
-    public static SnapshotState getLastSnapshot() {
+    public SnapshotState getLastSnapshot() {
         File file = getLastSnapshotFile();
-        return parseSnapshotFile(file);
+        SnapshotState state = null;
+        if(file != null){
+            state = parseSnapshotFile(file);
+        }
+        return state;
     }
-    private static File getLastSnapshotFile(){
+    private File getLastSnapshotFile(){
         File snapshotsDir = new File("./snapshots");
 
         // List all files in the directory that match the pattern
@@ -86,7 +89,7 @@ public class SnapshotManager {
         return file;
     }
 
-    private static SnapshotState parseSnapshotFile(File file) {
+    private SnapshotState parseSnapshotFile(File file) {
         byte[] fileContent;
         SnapshotState lastSnapshot = null;
         try  {

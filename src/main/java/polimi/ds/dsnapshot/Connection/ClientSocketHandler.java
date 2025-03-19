@@ -67,13 +67,13 @@ public class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param manager reference to the connection manager
      */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager, JavaDistributedSnapshot javaDistributedSnapshot) {
+    public ClientSocketHandler(Socket socket, ConnectionManager manager) {
         this.socket = socket;
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
-        this.prepareMessageInputEvent(javaDistributedSnapshot);
+        this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
     }
@@ -83,8 +83,8 @@ public class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param mute specify if the handler is mute or not
      */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute, JavaDistributedSnapshot javaDistributedSnapshot) {
-        this(socket, manager, javaDistributedSnapshot);
+    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
+        this(socket, manager);
         this.mute = mute;
     }
 
@@ -93,8 +93,8 @@ public class ClientSocketHandler implements Runnable{
      * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
      * @param socket socket to be managed
      */
-    public ClientSocketHandler(Socket socket, JavaDistributedSnapshot javaDistributedSnapshot) {
-        this(socket, null, javaDistributedSnapshot);
+    public ClientSocketHandler(Socket socket) {
+        this(socket, null);
     }
 
 
