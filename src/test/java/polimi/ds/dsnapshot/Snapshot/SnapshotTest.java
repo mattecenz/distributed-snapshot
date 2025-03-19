@@ -12,6 +12,7 @@ import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Connection.*;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
@@ -181,8 +182,9 @@ public class SnapshotTest {
 
         List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9");
         assert(savedSnapshotState.getMessageInputStack().size()==snapshotMessagesContent.size());
-        for(Message m : savedSnapshotState.getMessageInputStack()){
-            ApplicationMessage am = (ApplicationMessage) m;
+        for(CallbackContentWithName c : savedSnapshotState.getMessageInputStack()){
+            System.out.println(c.getEventName());
+            ApplicationMessage am = (ApplicationMessage) c.getCallBackMessage();
             String s = new String(am.getApplicationContent());
             assertDoesNotThrow(() -> {assert(snapshotMessagesContent.contains(s));});
         }

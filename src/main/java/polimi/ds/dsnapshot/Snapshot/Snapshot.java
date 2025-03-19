@@ -72,7 +72,7 @@ public class Snapshot {
     public void pushMessage(CallbackContent callbackContent) {
         CallbackContentWithName callbackContentWithName = (CallbackContentWithName) callbackContent;
         synchronized (lock) {
-            snapshotState.pushMessage(callbackContentWithName.getCallBackMessage());
+            snapshotState.pushMessage(callbackContentWithName);
         }
     }
 
