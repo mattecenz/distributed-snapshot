@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
+import polimi.ds.dsnapshot.Connection.Messages.TokenMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeException;
@@ -371,6 +372,16 @@ public class ConnectionManager {
 
     // </editor-fold>
 
+    // <editor-fold desc="Snapshot procedure">
+    private void forwardToken(TokenMessage tokenMessage, String inputChannelIp, int inputChannelPort){
+        for(ClientSocketHandler h : this.handlerList){
+            if(!h.getRemoteIp().equals(inputChannelIp) && h.getRemotePort()!=inputChannelPort){
+                h.sendMessage(tokenMessage);
+            }
+        }//todo: verify
+    }
+    // </editor-fold>
+
     public void sendMessage(Message message, String destinationIp, int destinationPort){
         //todo ackMessage
         NetNode n = new NetNode(destinationIp, destinationPort);
@@ -443,7 +454,6 @@ public class ConnectionManager {
             }
             case MESSAGE_NOTIMPLEMENTED -> {
                 // TODO: decide, should be the same as default
-                break;
             }
             case MESSAGE_PINGPONG -> {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
@@ -461,6 +471,12 @@ public class ConnectionManager {
                 //todo if message require to be forward
                 Event messageInputChannel = handler.getMessageInputChannel();
                 messageInputChannel.publish(m);
+            }
+            case SNAPSHOT_TOKEN -> {
+                TokenMessage tokenMessage = (TokenMessage) m;
+                if(snapshotManager.manageSnapshotToken(tokenMessage.getSnapshotId(),tokenMessage.getSnapshotCreatorIp(),tokenMessage.getSnapshotCreatorPort())){
+                    this.forwardToken(tokenMessage,handler.getRemoteIp(),handler.getRemotePort());
+                }
             }
             case null, default -> {
                 // TODO: decide

@@ -36,11 +36,11 @@ public class SnapshotManager {
         }
     }
 
-    public synchronized void manageSnapshotToken(String snapshotCode, String channelIp, int channelPort) {
+    public synchronized boolean manageSnapshotToken(String snapshotCode, String channelIp, int channelPort) {
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
             startNewSnapshot(snapshotCode, channelIp, channelPort);
-            return;
+            return true;
         }
 
         //receive a token for an existing snapshot => stop listening channel
@@ -49,6 +49,7 @@ public class SnapshotManager {
         } catch (EventException e) {
             //todo decide
         }
+        return false;
     }
 
     private void startNewSnapshot(String snapshotCode, String channelIp, int channelPort){
@@ -92,11 +93,9 @@ public class SnapshotManager {
     private SnapshotState parseSnapshotFile(File file) {
         byte[] fileContent;
         SnapshotState lastSnapshot = null;
-        try  {
-            FileInputStream fis = new FileInputStream(file);
-            fileContent = fis.readAllBytes();
-            lastSnapshot = (SnapshotState) SerializationUtils.deserialize(fileContent);
-            fis.close();
+        try (FileInputStream fis = new FileInputStream(file);
+             ObjectInputStream ois = new ObjectInputStream(fis)) {
+             lastSnapshot = (SnapshotState) ois.readObject();
         }catch (Exception e){
             //TODO decide
             System.err.println("execption: " + e);

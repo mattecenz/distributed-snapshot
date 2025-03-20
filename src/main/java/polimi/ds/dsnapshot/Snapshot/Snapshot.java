@@ -18,6 +18,7 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -88,10 +89,9 @@ public class Snapshot {
 
     private void endSnapshot() {
         try {
-            byte[] fileContent = SerializationUtils.serialize(snapshotState);
-
             try(FileOutputStream fos = new FileOutputStream(snapshotPath)){
-                fos.write(fileContent);
+                ObjectOutputStream oos = new ObjectOutputStream(fos);
+                oos.writeObject(snapshotState);
             }
         } catch (Exception e) {
             System.err.println(e.getMessage());
