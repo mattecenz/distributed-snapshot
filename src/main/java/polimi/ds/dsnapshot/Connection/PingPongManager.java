@@ -2,6 +2,7 @@ package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 
@@ -9,7 +10,7 @@ public class PingPongManager {
     private boolean mute = false;
     private final ClientSocketHandler handler;
     private final ConnectionManager manager;
-    private final int pingPongTimeout = 5000; //todo: config param
+    private final int pingPongTimeout = Config.PINGPONG_TIMEOUT;
 
 
     protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean mute) {

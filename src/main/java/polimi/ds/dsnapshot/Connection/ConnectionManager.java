@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 /**
@@ -53,7 +54,7 @@ public class ConnectionManager {
      */
     private final int port;
     //TODO: put it in a constant ?
-    double directConnectionProbability = 0.7; // 70%
+    double directConnectionProbability = Config.DIRECT_CONNECTION_PROBABILITY; // 70%
 
     /**
      * Mute attribute of the manager

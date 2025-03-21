@@ -12,6 +12,7 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -32,7 +33,7 @@ import java.time.format.DateTimeFormatter;
 public class Snapshot {
     private final Object lock = new Object();
 
-    private String snapshotPath = "./snapshots/"; //todo config param
+    private String snapshotPath = Config.SNAPSHOT_PATH;
     private final SnapshotState snapshotState;
     //private final Stack<Message> messageInputStack = new Stack<>();
     private final Consumer<CallbackContent> pushMessageReference = this::pushMessage;

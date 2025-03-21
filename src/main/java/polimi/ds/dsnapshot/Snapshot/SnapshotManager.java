@@ -3,6 +3,7 @@ package polimi.ds.dsnapshot.Snapshot;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ public class SnapshotManager {
     //TODO: remove snapshot when ends
     private final ConnectionManager connectionManager;
 
-    private static final String snapshotPath = "./snapshots/"; //todo config param
+    private static final String snapshotPath = Config.SNAPSHOT_PATH;
 
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
