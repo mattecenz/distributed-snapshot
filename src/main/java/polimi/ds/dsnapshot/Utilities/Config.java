@@ -1,4 +1,4 @@
-﻿package polimi.ds.dsnapshot.Utilities;
+package polimi.ds.dsnapshot.Utilities;
 
 public class Config {
 
