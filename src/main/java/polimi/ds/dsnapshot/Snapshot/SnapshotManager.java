@@ -76,7 +76,7 @@ public class SnapshotManager {
         File snapshotsDir = new File("./snapshots");
 
         // List all files in the directory that match the pattern
-        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
+        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
 
         if (files == null || files.length == 0) {
             System.err.println("No snapshots found");
@@ -109,7 +109,7 @@ public class SnapshotManager {
         // Extract the timestamp part and remove the ".bin"
         String timestampStr = filename.split("_")[1].replace(".bin", "");
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
         // Parse into LocalDateTime and then combine with the system default zone
         LocalDateTime localDateTime = LocalDateTime.parse(timestampStr, formatter);
         return ZonedDateTime.of(localDateTime, ZoneId.systemDefault());

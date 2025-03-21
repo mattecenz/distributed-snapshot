@@ -373,12 +373,12 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Snapshot procedure">
-    private void forwardToken(TokenMessage tokenMessage, String inputChannelIp, int inputChannelPort){
+    private void forwardToken(TokenMessage tokenMessage, ClientSocketHandler inputHandler){
         for(ClientSocketHandler h : this.handlerList){
-            if(!h.getRemoteIp().equals(inputChannelIp) && h.getRemotePort()!=inputChannelPort){
+            if(!Objects.equals(h, inputHandler)){//todo: verify
                 h.sendMessage(tokenMessage);
             }
-        }//todo: verify
+        }
     }
     // </editor-fold>
 
@@ -475,7 +475,7 @@ public class ConnectionManager {
             case SNAPSHOT_TOKEN -> {
                 TokenMessage tokenMessage = (TokenMessage) m;
                 if(snapshotManager.manageSnapshotToken(tokenMessage.getSnapshotId(),tokenMessage.getSnapshotCreatorIp(),tokenMessage.getSnapshotCreatorPort())){
-                    this.forwardToken(tokenMessage,handler.getRemoteIp(),handler.getRemotePort());
+                    this.forwardToken(tokenMessage,handler);
                 }
             }
             case null, default -> {

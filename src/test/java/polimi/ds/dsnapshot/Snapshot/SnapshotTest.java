@@ -105,6 +105,46 @@ public class SnapshotTest {
 
     @Test
     public void SnapshotWIthMessagesTest() throws JavaDSException, EventException, InterruptedException {
+        //input messages
+        List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
+        List<String> n1Messages = Arrays.asList("6","7","8","9","T","10","11");
+        List<String> n2Messages = Arrays.asList("T","4","5");
+
+        //expected snapshot content
+        List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9");
+
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+    }
+
+
+    @Test
+    public void SnapshotWIthMessagesTest2() throws JavaDSException, EventException, InterruptedException {
+        //input messages
+        List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
+        List<String> n1Messages = Arrays.asList("T","10","11");
+        List<String> n2Messages = Arrays.asList("T","4","5");
+
+        //expected snapshot content
+        List<String> snapshotMessagesContent = Arrays.asList();
+
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+    }
+
+    @Test
+    public void SnapshotWIthMessagesTest3() throws JavaDSException, EventException, InterruptedException {
+        //input messages
+        List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
+        List<String> n1Messages = Arrays.asList("6","7","8","9","T","10","11");
+        List<String> n2Messages = Arrays.asList("12","13","14","T","4","5");
+
+        //expected snapshot content
+        List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9","12","13","14");
+
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+    }
+
+
+    private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent) throws InterruptedException, JavaDSException, EventException {
         //application state
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();
@@ -126,13 +166,12 @@ public class SnapshotTest {
         when(clientSocketHandlerMock.getRemotePort()).thenReturn(1234);
 
         //messages
-        List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
+
         Stack<String> snapshotStarterStack= new Stack<>();
         snapshotStarterStack.addAll(snapshotStarterMessages.reversed());
-        List<String> n1Messages = Arrays.asList("6","7","8","9","T","10","11");
+
         Stack<String> n1Stack= new Stack<>();
         n1Stack.addAll(n1Messages.reversed());
-        List<String> n2Messages = Arrays.asList("T","4","5");
         Stack<String> n2Stack= new Stack<>();
         n2Stack.addAll(n2Messages.reversed());
 
@@ -176,24 +215,23 @@ public class SnapshotTest {
 
         assertDoesNotThrow(() -> {
             ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
-            System.out.println(savedApplicationState.i);
+            System.out.println("saved snapshot state: " + savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
 
-        List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9");
+        System.out.println("messages saved number: " + savedSnapshotState.getMessageInputStack().size());
         assert(savedSnapshotState.getMessageInputStack().size()==snapshotMessagesContent.size());
         for(CallbackContentWithName c : savedSnapshotState.getMessageInputStack()){
-            System.out.println(c.getEventName());
             ApplicationMessage am = (ApplicationMessage) c.getCallBackMessage();
             String s = new String(am.getApplicationContent());
+            System.out.println("saved message content: " + s);
             assertDoesNotThrow(() -> {assert(snapshotMessagesContent.contains(s));});
         }
     }
 
-
     private void socketEmulator(String ip, int port, String message) throws EventException {
         if(Objects.equals(message, "T")){
-            System.out.println("token received");
+            System.out.println("token received from channel: " + ip + ":" + port);
             snapshotManger.manageSnapshotToken("testS2", ip, port);
         }else {
             byte [] messageBytes = message.getBytes();

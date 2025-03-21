@@ -44,7 +44,8 @@ public class Snapshot {
         ZonedDateTime now = ZonedDateTime.now();
 
         // Format the timestamp into a string, excluding seconds and replacing colons with underscores
-        String timestampStr = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm").format(now);
+        String timestampStr = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss").format(now);
+
 
         // File name & path
         this.snapshotPath += snapshotCode + "_" + timestampStr + ".bin";
