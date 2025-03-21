@@ -5,11 +5,19 @@ import polimi.ds.dsnapshot.Exception.SpanningTreeException;
 import java.util.ArrayList;
 import java.util.List;
 
-class SpanningTree {
+public class SpanningTree {
     private ClientSocketHandler anchorNodeHandler;
     private final List<ClientSocketHandler> children = new ArrayList<>();
 
-    protected ClientSocketHandler getAnchorNodeHandler() {
+    public SpanningTree(){}
+    // Copy constructor
+    public SpanningTree(SpanningTree other) {
+        this.anchorNodeHandler = other.anchorNodeHandler;
+        this.children.addAll(other.children);
+    }
+
+
+    public ClientSocketHandler getAnchorNodeHandler() {
         return anchorNodeHandler;
     }
 
@@ -17,7 +25,7 @@ class SpanningTree {
         return children;
     }
 
-    protected void setAnchorNodeHandler(ClientSocketHandler anchorNodeHandler) {
+    public void setAnchorNodeHandler(ClientSocketHandler anchorNodeHandler) {
         this.anchorNodeHandler = anchorNodeHandler;
     }
 

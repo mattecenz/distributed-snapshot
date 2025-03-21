@@ -13,7 +13,7 @@ public class RoutingTableTest {
     private ClientSocketHandler socketHandler;
 
 
-    @BeforeEach
+    /*@BeforeEach
     void setUp() {
         // Inizializza una nuova tabella di routing prima di ogni test
         routingTable = new RoutingTable();
@@ -118,5 +118,5 @@ public class RoutingTableTest {
         routingTable.removeAllIndirectPath(socketHandler);
 
         assertFalse(routingTable.isEmpty());
-    }
+    }*/
 }

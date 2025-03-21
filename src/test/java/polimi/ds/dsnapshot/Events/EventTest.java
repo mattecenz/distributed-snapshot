@@ -4,7 +4,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 
+import java.util.Calendar;
 import java.util.function.Consumer;
 
 public class EventTest {
@@ -13,27 +15,27 @@ public class EventTest {
 
     private Message m1,m2;
 
-    private Consumer<Message> c1,c2;
+    private Consumer<CallbackContent> c1,c2;
 
     @BeforeEach
     void setUp() {
         m1 = null;
         m2 = null;
 
-        e1 = new Event();
+        e1 = new Event("testE1");
         c1 = this::e1Callback;
         e1.subscribe(c1);
-        e2 = new Event();
+        e2 = new Event("testE2");
         c2 = this::e2Callback;
         e2.subscribe(c2);
     }
 
-    private void e1Callback(Message m) {
-        this.m1 = m;
+    private void e1Callback(CallbackContent m) {
+        this.m1 = m.getCallBackMessage();
     }
 
-    private void e2Callback(Message m) {
-        this.m2 = m;
+    private void e2Callback(CallbackContent m) {
+        this.m2 = m.getCallBackMessage();
     }
 
     @Test

@@ -2,12 +2,10 @@ package polimi.ds.dsnapshot.Events;
 
 import polimi.ds.dsnapshot.Exception.EventException;
 
-import java.util.Dictionary;
-import java.util.Hashtable;
+import java.util.*;
 
 public class EventsBroker {
-    private static Dictionary<String, Event> eventChannels = new Hashtable<>();
-
+    private static Map<String, Event> eventChannels = new HashMap<>();
     public static Event getEventChannel(String channelName) throws EventException {
         if(eventChannels.get(channelName) == null) {
             throw new EventException("channel doesn't exist");
@@ -19,8 +17,7 @@ public class EventsBroker {
         if(eventChannels.get(channelName) != null) {
             throw new EventException("channel already exist");
         }
-
-        Event e = new Event();
+        Event e = new Event(channelName);
         eventChannels.put(channelName, e);
         return e;
     }
@@ -42,7 +39,12 @@ public class EventsBroker {
         eventChannels.remove(channelName);
     }
 
+    public static List<String> getAllEventChannelNames() {
+        List<String> keys = new ArrayList<>(eventChannels.keySet());
+        return keys;
+    }
+
     public static void removeAllEventsChannel(){
-        eventChannels = new Hashtable<>();
+        eventChannels.clear();
     }
 }

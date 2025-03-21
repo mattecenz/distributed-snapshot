@@ -13,7 +13,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class ClientSocketHandler implements Runnable{
+public class ClientSocketHandler implements Runnable{
 
     /**
      * Socket which represents the connection
@@ -73,7 +73,7 @@ class ClientSocketHandler implements Runnable{
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
-        this.prepareMessageInputEvent();
+        this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
     }
@@ -86,7 +86,6 @@ class ClientSocketHandler implements Runnable{
     public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
         this(socket, manager);
         this.mute = mute;
-        this.prepareMessageInputEvent();
     }
 
     /**
@@ -96,18 +95,17 @@ class ClientSocketHandler implements Runnable{
      */
     public ClientSocketHandler(Socket socket) {
         this(socket, null);
-        this.prepareMessageInputEvent();
     }
 
 
-    private void prepareMessageInputEvent(){
+    private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
         try {
             messageInputChannel = EventsBroker.createEventChannel(this.getRemoteIp()+":"+this.getRemotePort());
         } catch (EventException e) {
             //todo decide
             throw new RuntimeException(e);
         }
-        messageInputChannel.subscribe(JavaDistributedSnapshot::ReceiveMessage);
+        messageInputChannel.subscribe(javaDistributedSnapshot::ReceiveMessage);
     }
 
     public Event getMessageInputChannel() {

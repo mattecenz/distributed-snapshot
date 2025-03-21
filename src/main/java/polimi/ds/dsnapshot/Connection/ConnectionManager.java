@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
+import polimi.ds.dsnapshot.Connection.Messages.TokenMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeException;
@@ -21,12 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Handler;
+
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
+import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 /**
  * The connection manager consists of a TCP server socket who can receive connections.
@@ -41,6 +43,7 @@ public class ConnectionManager {
 
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
     private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
+    private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
     /**
      * Reference to the handler of the acks
      */
@@ -87,22 +90,16 @@ public class ConnectionManager {
             try(ServerSocket serverSocket = new ServerSocket(this.port)){
                 if(!this.mute) System.out.println("[ConnectionManager] Created listening socket on port "+this.port+" ...");
 
-                try(ExecutorService executor = Executors.newCachedThreadPool()){
-                    if(!this.mute) System.out.println("[ConnectionManager] Created thread pool...");
+                if(!this.mute) System.out.println("[ConnectionManager] Created thread pool...");
 
-                    while(true){
-                        if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
-                        Socket socket = serverSocket.accept();
-                        if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
-                        ClientSocketHandler handler = new ClientSocketHandler(socket, this);
-                        this.handlerList.add(handler);
-                        executor.submit(handler);
-                        if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
-                    }
-
-                }catch (RuntimeException e){
-                    // TODO: what to do ?
-                    System.err.println("[ConnectionManager] Runtime exception: "+e.getMessage());
+                while(true){
+                    if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
+                    Socket socket = serverSocket.accept();
+                    if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
+                    ClientSocketHandler handler = new ClientSocketHandler(socket, this);
+                    this.handlerList.add(handler);
+                    ThreadPool.submit(handler);
+                    if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
                 }
 
             }catch (IOException e){
@@ -375,6 +372,16 @@ public class ConnectionManager {
 
     // </editor-fold>
 
+    // <editor-fold desc="Snapshot procedure">
+    private void forwardToken(TokenMessage tokenMessage, ClientSocketHandler inputHandler){
+        for(ClientSocketHandler h : this.handlerList){
+            if(!Objects.equals(h, inputHandler)){//todo: verify
+                h.sendMessage(tokenMessage);
+            }
+        }
+    }
+    // </editor-fold>
+
     public void sendMessage(Message message, String destinationIp, int destinationPort){
         //todo ackMessage
         NetNode n = new NetNode(destinationIp, destinationPort);
@@ -447,7 +454,6 @@ public class ConnectionManager {
             }
             case MESSAGE_NOTIMPLEMENTED -> {
                 // TODO: decide, should be the same as default
-                break;
             }
             case MESSAGE_PINGPONG -> {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
@@ -466,6 +472,13 @@ public class ConnectionManager {
                 Event messageInputChannel = handler.getMessageInputChannel();
                 messageInputChannel.publish(m);
             }
+            case SNAPSHOT_TOKEN -> {
+                TokenMessage tokenMessage = (TokenMessage) m;
+                String tokenName = tokenMessage.getSnapshotId()+"_"+tokenMessage.getSnapshotCreatorIp()+"_"+tokenMessage.getSnapshotCreatorPort();
+                if(snapshotManager.manageSnapshotToken(tokenName,handler.getRemoteIp(),handler.getRemotePort())){
+                    this.forwardToken(tokenMessage,handler);
+                }
+            }
             case null, default -> {
                 // TODO: decide
             }
@@ -473,4 +486,13 @@ public class ConnectionManager {
 
     }
 
+    // <editor-fold desc="Static Getter">
+    synchronized public RoutingTable getRoutingTable(){
+        return routingTable.get();
+    }
+
+    synchronized public SpanningTree getSpt(){
+        return spt.get();
+    }
+    // </editor-fold>
 }
