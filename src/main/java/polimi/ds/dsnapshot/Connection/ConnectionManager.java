@@ -474,7 +474,8 @@ public class ConnectionManager {
             }
             case SNAPSHOT_TOKEN -> {
                 TokenMessage tokenMessage = (TokenMessage) m;
-                if(snapshotManager.manageSnapshotToken(tokenMessage.getSnapshotId(),tokenMessage.getSnapshotCreatorIp(),tokenMessage.getSnapshotCreatorPort())){
+                String tokenName = tokenMessage.getSnapshotId()+"_"+tokenMessage.getSnapshotCreatorIp()+"_"+tokenMessage.getSnapshotCreatorPort();
+                if(snapshotManager.manageSnapshotToken(tokenName,handler.getRemoteIp(),handler.getRemotePort())){
                     this.forwardToken(tokenMessage,handler);
                 }
             }
