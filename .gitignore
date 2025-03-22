@@ -3,6 +3,8 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+./snapshots/*
+
 ### IntelliJ IDEA ###
 .idea/*
 src/.idea/*

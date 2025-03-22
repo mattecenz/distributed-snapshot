@@ -1,15 +1,9 @@
 package polimi.ds.dsnapshot.Connection;
 
-import polimi.ds.dsnapshot.Connection.NetNode;
 import polimi.ds.dsnapshot.Exception.RoutingTableException;
 
 import java.io.Serializable;
 import java.util.Dictionary;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.PrimitiveIterator;
-
-import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 
 public class RoutingTable implements Serializable {
     private Dictionary<NetNode, ClientSocketHandler> routingTableFields;
@@ -35,7 +29,7 @@ public class RoutingTable implements Serializable {
         return routingTableFields.isEmpty();
     }
 
-    protected void addPath(NetNode destination, ClientSocketHandler nextHopConnection) throws RoutingTableException {
+    void addPath(NetNode destination, ClientSocketHandler nextHopConnection) throws RoutingTableException {
         if (routingTableFields.get(destination) != null) throw new RoutingTableException("destination already in the table");
 
         routingTableFields.put(destination,nextHopConnection);
@@ -61,7 +55,7 @@ public class RoutingTable implements Serializable {
         routingTableFields.remove(destination);
     }
 
-    protected void removeAllIndirectPath(ClientSocketHandler handler){
+    void removeAllIndirectPath(ClientSocketHandler handler){
         var keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NetNode key = keys.nextElement();
@@ -71,7 +65,7 @@ public class RoutingTable implements Serializable {
         }
     }
 
-    protected ClientSocketHandler getNextHop(NetNode destination) throws RoutingTableException {
+    ClientSocketHandler getNextHop(NetNode destination) throws RoutingTableException {
         ClientSocketHandler nextHop = routingTableFields.get(destination);
 
         if(nextHop == null) throw new RoutingTableException("destination isn't present the table");

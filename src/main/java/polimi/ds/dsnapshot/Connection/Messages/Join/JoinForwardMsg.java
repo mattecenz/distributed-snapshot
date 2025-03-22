@@ -10,39 +10,42 @@ import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
  */
 public class JoinForwardMsg  extends JoinMsg {
 
-    private final String anchorIp;
-    private final int anchorPort;
+    /**
+     * Ip of the new node who joins the network
+     */
+    private final String ipNewNode;
+    /**
+     * Port of the new node who joins the network
+     */
+    private final int portNewNode;
 
     /**
      * Constructs a forwarded join message with the specified information.
-     *
-     * @param ip The IP address of the sender node.
-     * @param port The port of the sender node.
-     * @param anchorIp The IP address of the anchor node.
-     * @param anchorPort The port of the anchor node.
+     * @param ipNewNode The IP address of the anchor node.
+     * @param portNewNode The port of the anchor node.
      */
-    public JoinForwardMsg(String ip, int port, String anchorIp, int anchorPort) {
-        super(MessageID.MESSAGE_JOINFORWARD, ip, port);
+    public JoinForwardMsg(String ipNewNode, int portNewNode) {
+        super(MessageID.MESSAGE_JOINFORWARD);
 
-        this.anchorIp = anchorIp;
-        this.anchorPort = anchorPort;
+        this.ipNewNode = ipNewNode;
+        this.portNewNode = portNewNode;
     }
 
     /**
-     * Returns the IP address of the anchor node.
+     * Returns the IP address of the new node.
      *
-     * @return The anchor node's IP address.
+     * @return The new node's IP address.
      */
-    public final String getAnchorIp() {
-        return anchorIp;
+    public final String getIpNewNode() {
+        return this.ipNewNode;
     }
 
     /**
-     * Returns the port of the anchor node.
+     * Returns the port of the new node.
      *
-     * @return The anchor node's port.
+     * @return The new node's port.
      */
-    public final int getAnchorPort() {
-        return anchorPort;
+    public final int getPortNewNode() {
+        return this.portNewNode;
     }
 }

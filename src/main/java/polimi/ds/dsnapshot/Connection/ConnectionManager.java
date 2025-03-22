@@ -120,7 +120,7 @@ public class ConnectionManager {
     // TODO: refactor well to work with exceptions
     // TODO: discuss a bit if every message needs the destination ip:port
     // TODO: there is a problem, the MessageAck is a different class than the Message
-    public boolean sendMessageSynchronized(Message m, String ip, int port){
+    boolean sendMessageSynchronized(Message m, String ip, int port){
 
         if(!this.mute) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
 
@@ -148,14 +148,12 @@ public class ConnectionManager {
         if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
         boolean b = handler.sendMessage(m);
 
-
         if(!b) {
             if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
             return false;
         }
 
         if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
-
 
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
@@ -178,13 +176,12 @@ public class ConnectionManager {
     }
 
     private void sendBroadcastMsg(Message msg){
-        for(ClientSocketHandler h : spt.get().getChildren()) {
+        for(ClientSocketHandler h : this.spt.get().getChildren()) {
             h.sendMessage(msg);
         }
-        ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
-        if(anchorNodeHandler != null)anchorNodeHandler.sendMessage(msg);
+        ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
+        if(anchorNodeHandler != null) anchorNodeHandler.sendMessage(msg);
     }
-
 
     /**
      * Retrieves the IP address of the local machine.
@@ -201,6 +198,30 @@ public class ConnectionManager {
         return ipAddress.toCharArray();
     }
 
+    /**
+     * Method to create a new direct connection (i.e. open a new socket) with a specific peer.
+     * This method is not synchronized but the ones who call it should be.
+     * @param ip ip to connect to
+     * @param port port to connect to
+     * @return a reference to the socket created
+     * @throws IOException if something goes wrong
+     */
+    private synchronized ClientSocketHandler createDirectConnection(String ip, int port) throws IOException {
+        ClientSocketHandler handler = new ClientSocketHandler(new Socket(ip,port, mute), this);
+        handler.run();
+        this.handlerList.add(handler);
+        return handler;
+    }
+
+    /**
+     * Processes a direct connection message received from another node
+     * @param handler handler of the socket
+     * @throws RoutingTableException if the ip address is already in the routing table
+     */
+    private void addNewRoutingTableEntry(ClientSocketHandler handler) throws RoutingTableException {
+        this.routingTable.get().addPath(new NetNode(handler.getRemoteIp(), handler.getRemotePort()),handler);
+    }
+
     // <editor-fold desc="Join procedure">
     /**
      * Establishes a connection to an anchor node in the network by creating a socket connection.
@@ -210,49 +231,48 @@ public class ConnectionManager {
      * @param anchorPort the port number of the node to join
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
-    public synchronized void joinNet(String anchorIp, int anchorPort) throws IOException {
-        JoinMsg msg = new JoinMsg(Arrays.toString(getMachineIp()), this.port);
+    public synchronized void joinNetwork(String anchorIp, int anchorPort) throws IOException {
+        JoinMsg msg = new JoinMsg();
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(new Socket(anchorIp,anchorPort, mute), this);
-        handler.run();
-        handlerList.add(handler);
+        ClientSocketHandler handler = this.createDirectConnection(anchorIp, anchorPort);
         //send join msg to anchor node & wait for ack
         try {
             this.sendMessageSynchronized(msg,handler);
         } catch (ConnectionException e) {
             //todo: ack not received
+            System.err.println("[ConnectionManager] Error waiting for ack: " + e.getMessage());
             return;
         }
         //handler.sendMessage(msg);
-        spt.get().setAnchorNodeHandler(handler);
+        this.spt.get().setAnchorNodeHandler(handler);
         handler.startPingPong();
     }
 
     /**
     * Handles a join request received from another node in the network.
     *
-    * @param msg     the {@link JoinMsg} containing information about the joining node.
     * @param handler the {@link ClientSocketHandler} managing the client communication
     *                for the incoming connection.
     * @throws UnknownHostException if the IP address of the host node cannot be resolved.
     */
-    private void receiveJoin(JoinMsg msg, ClientSocketHandler handler) throws UnknownHostException {
+    private void joinNewNode(ClientSocketHandler handler) throws UnknownHostException {
         try {
             //add node in direct connection list and in routing table
-            receiveDirectConnectionMessage((DirectConnectionMsg) msg, handler);
+            this.addNewRoutingTableEntry(handler);
         } catch (RoutingTableException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
 
-        //forward join notify to neighbour
-
-        JoinForwardMsg m = new JoinForwardMsg(msg.getIp(),msg.getPort(), Arrays.toString(this.getMachineIp()),this.port);
+        //forward join notify to neighbours
+        // TODO: maybe this should need an ack?
+        JoinForwardMsg m = new JoinForwardMsg(handler.getRemoteIp(), handler.getRemotePort());
 
         for(ClientSocketHandler h : this.handlerList){
-            if(h!=handler)h.sendMessage(m);
+            if(h!=handler) h.sendMessage(m);
         }
     }
+
     /**
      * Handles a forwarded join request in the network.
      * @param msg the {@link JoinForwardMsg} containing details about the forwarder and the joiner.
@@ -264,67 +284,50 @@ public class ConnectionManager {
         try {
             if(randomValue < this.directConnectionProbability){
                 //create socket connection with the joiner to instantiate a new direct connection
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(new Socket(msg.getIp(),msg.getPort(), mute), this);
-                joinerHandler.run();
+                ClientSocketHandler joinerHandler = this.createDirectConnection(msg.getIpNewNode(), msg.getPortNewNode());
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
-                //save the direct connection in the handler list
-                handlerList.add(joinerHandler);
+                joinerHandler.sendMessage(new DirectConnectionMsg());
                 //add node in routing table
-                routingTable.get().addPath(new NetNode(msg.getIp(), msg.getPort()), joinerHandler);
+                this.routingTable.get().addPath(new NetNode(msg.getIpNewNode(), msg.getPortNewNode()), joinerHandler);
             }else {
                 //creating undirected path to the joiner node with the anchor node
-                routingTable.get().addPath(new NetNode(msg.getAnchorIp(), msg.getAnchorPort()),handler);
+                this.routingTable.get().addPath(new NetNode(msg.getIpNewNode(), msg.getPortNewNode()),handler);
             }
         } catch (RoutingTableException e) {
-            return;
-            //TODO manage: if I receive a join forward from a node already in the routing table (wtf)
+            // Not much we can do
+            System.err.println("[ConnectionManager] We should not be here, a node already in the routing table asked to connect : " + e.getMessage());
         }
-    }
-    /**
-     * Processes a direct connection message received from another node in the network.
-     * @param msg the {@link DirectConnectionMsg} containing the details of the direct connection request.
-     * @param handler the {@link ClientSocketHandler} managing the communication context for the incoming message.
-     * @throws RoutingTableException if the ip address is already in the {@link RoutingTable}
-     */
-    private void receiveDirectConnectionMessage(DirectConnectionMsg msg, ClientSocketHandler handler) throws RoutingTableException {
-        //add node in routing table
-        routingTable.get().addPath(new NetNode(msg.getIp(), msg.getPort()), handler);
-        //save the direct connection in the handler list
-        handlerList.add(handler);
     }
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    public synchronized void exitNet() throws IOException {
+    public synchronized void exitNetwork() throws IOException {
         //reassign all child to the current anchor node of the exiting node
-        ClientSocketHandler handler = spt.get().getAnchorNodeHandler();
+        ClientSocketHandler handler = this.spt.get().getAnchorNodeHandler();
 
         //send exit message to all child
         ExitMsg m = new ExitMsg(handler.getRemoteIp(),handler.getRemotePort());
-        sendBroadcastMsg(m);
+        this.sendBroadcastMsg(m);
 
         //clear handler list
-        handlerList = new ArrayList<>();
-
-        //clear spt
-        spt.set(new SpanningTree());
+        this.handlerList.clear();
 
         //clear routing table
-        routingTable.get().clearTable();
+        this.routingTable.get().clearTable();
     }
 
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         try {
-            routingTable.get().removePath(new NetNode(handler.getRemoteIp(),handler.getRemotePort()));
-            routingTable.get().removeAllIndirectPath(handler);
+            this.routingTable.get().removePath(new NetNode(handler.getRemoteIp(),handler.getRemotePort()));
+            this.routingTable.get().removeAllIndirectPath(handler);
             handler.close();
-            handlerList.remove(handler);
+            this.handlerList.remove(handler);
 
-            ClientSocketHandler anchorNodeHandler = spt.get().getAnchorNodeHandler();
+            ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
             if(handler == anchorNodeHandler){
                 //reassign anchor node
-                spt.get().setAnchorNodeHandler(null);
+                // There has to be a better way of doing it
+                this.spt.get().setAnchorNodeHandler(null);
                 this.sendExitNotify(handler.getRemoteIp(), handler.getRemotePort());
                 this.newAnchorNode(msg);
             }else if(anchorNodeHandler != null){
@@ -333,7 +336,7 @@ public class ConnectionManager {
 
                 //TODO send to anchor node only isn't enough, discuss how to avoid message loops
             }
-
+        // TODO: explicit exceptions ? Which is this one ?
         } catch (Exception e) {
             //TODO if ip not in routing table
             return;
@@ -349,10 +352,10 @@ public class ConnectionManager {
         ClientSocketHandler newAnchorNextHop;
         try {
             // Attempt to fetch the next hop in the routing table for the new anchor node.
-            newAnchorNextHop = routingTable.get().getNextHop(new NetNode(msg.getNewAnchorIp(), msg.getNewAnchorPort()));
+            newAnchorNextHop = this.routingTable.get().getNextHop(new NetNode(msg.getNewAnchorIp(), msg.getNewAnchorPort()));
         } catch (RoutingTableException e) {
             // No path to reach the new anchor node, establish a direct connection.
-            this.joinNet(msg.getNewAnchorIp(), msg.getNewAnchorPort());
+            this.joinNetwork(msg.getNewAnchorIp(), msg.getNewAnchorPort());
             return;
         }
 
@@ -360,12 +363,13 @@ public class ConnectionManager {
         if(Objects.equals(newAnchorNextHop.getRemoteIp(), msg.getNewAnchorIp()) && newAnchorNextHop.getRemotePort()==msg.getNewAnchorPort()){
             //TODO: there is already a direct cnt between this node and the anchor -> start ping pong
             //set new anchor node
-            spt.get().setAnchorNodeHandler(newAnchorNextHop);
+            this.spt.get().setAnchorNodeHandler(newAnchorNextHop);
             return;
         }
         // No direct connection with the new anchor node; establish one.
-        this.joinNet(msg.getNewAnchorIp(), msg.getNewAnchorPort());
+        this.joinNetwork(msg.getNewAnchorIp(), msg.getNewAnchorPort());
     }
+
     private void sendExitNotify(String exitIp, int exitPort){
         ExitNotify exitNotify = new ExitNotify(exitIp, exitPort);
         sendBroadcastMsg(exitNotify);
@@ -415,7 +419,7 @@ public class ConnectionManager {
         switch(m.getInternalID()){
             case MESSAGE_JOIN -> {
                 try {
-                    this.receiveJoin((JoinMsg) m, handler);
+                    this.joinNewNode(handler);
                 } catch (UnknownHostException e) {
                     // TODO: decide
                     System.err.println("[ConnectionManager] Unknown host: " + e.getMessage());
@@ -442,7 +446,7 @@ public class ConnectionManager {
             }
             case MESSAGE_DIRECTCONNECTION -> {
                 try{
-                    this.receiveDirectConnectionMessage((DirectConnectionMsg) m, handler);
+                    this.addNewRoutingTableEntry(handler);
                 }
                 catch (RoutingTableException e){
                     // TODO: decide, i dont know what these exceptions do
@@ -452,9 +456,6 @@ public class ConnectionManager {
             case MESSAGE_ACK -> {
                 // If the message received is an ack then remove it from the ack handler
                 this.ackHandler.removeAckId(m.getSequenceNumber());
-            }
-            case MESSAGE_NOTIMPLEMENTED -> {
-                // TODO: decide, should be the same as default
             }
             case MESSAGE_PINGPONG -> {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
@@ -479,6 +480,9 @@ public class ConnectionManager {
                 if(snapshotManager.manageSnapshotToken(tokenName,handler.getRemoteIp(),handler.getRemotePort())){
                     this.forwardToken(tokenMessage,handler);
                 }
+            }
+            case MESSAGE_NOTIMPLEMENTED -> {
+                // TODO: decide, should be the same as default
             }
             case null, default -> {
                 // TODO: decide

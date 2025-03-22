@@ -231,10 +231,18 @@ public class ClientSocketHandler implements Runnable{
         }
     }
 
+    /**
+     * Get IP of remote socket
+     * @return the ip
+     */
     public String getRemoteIp(){
         return this.socket.getInetAddress().getHostAddress();
     }
 
+    /**
+     * Get the port of remote socket
+     * @return the port
+     */
     public int getRemotePort(){
         return this.socket.getPort();
     }

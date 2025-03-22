@@ -38,7 +38,7 @@ public class JavaDistributedSnapshot{
     public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
         try {
-            connectionManager.joinNet(anchorNodeIp,anchorNodePort);
+            connectionManager.joinNetwork(anchorNodeIp,anchorNodePort);
         } catch (IOException e) {
             throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
@@ -52,7 +52,7 @@ public class JavaDistributedSnapshot{
     public void leaveNetwork() throws JavaDSException{
         applicationLayerInterface = null;
         try {
-            connectionManager.exitNet();
+            connectionManager.exitNetwork();
         } catch (IOException e) {
             throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
