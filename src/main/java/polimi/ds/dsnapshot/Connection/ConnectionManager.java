@@ -56,13 +56,8 @@ public class ConnectionManager {
      * For the moment we can assume it is immutable
      */
     private final NodeName name;
-    //TODO: put it in a constant ?
-    double directConnectionProbability = Config.DIRECT_CONNECTION_PROBABILITY; // 70%
 
-    /**
-     * Mute attribute of the manager
-     */
-    private boolean mute=false;
+    double directConnectionProbability = Config.DIRECT_CONNECTION_PROBABILITY; // 70%
 
     /**
      * Constructor of the connection manager
@@ -71,6 +66,7 @@ public class ConnectionManager {
         this.handlerList = new ArrayList<>();
         this.ackHandler = new AckHandler();
 
+        // Default value if something goes wrong
         String thisIP = "127.0.0.1";
         try{
             InetAddress localHost = InetAddress.getLocalHost();
@@ -85,35 +81,26 @@ public class ConnectionManager {
         System.out.println("[ConnectionManager] ConnectionManager created successfully...");
     }
 
-    /**
-     * Constructor of the connection manager
-     * @param mute specify if the manager is muted or not
-     */
-    public ConnectionManager(int port, boolean mute){
-        this(port);
-        this.mute=mute;
-    }
-
     public void start(){
-        if(!this.mute) System.out.println("[ConnectionManager] Preparing the thread...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Preparing the thread...");
 
         // This start has to launch another thread.
 
         Thread t = new Thread(()->{
 
             try(ServerSocket serverSocket = new ServerSocket(this.name.getPort())){
-                if(!this.mute) System.out.println("[ConnectionManager] Created listening socket on port "+this.name.getPort()+" ...");
+                if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Created listening socket on port "+this.name.getPort()+" ...");
 
-                if(!this.mute) System.out.println("[ConnectionManager] Created thread pool...");
+                if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Created thread pool...");
 
                 while(true){
-                    if(!this.mute) System.out.println("[ConnectionManager] Waiting for connection...");
+                    if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Waiting for connection...");
                     Socket socket = serverSocket.accept();
-                    if(!this.mute) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
+                    if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
                     ClientSocketHandler handler = new ClientSocketHandler(socket, this);
                     this.handlerList.add(handler);
                     ThreadPool.submit(handler);
-                    if(!this.mute) System.out.println("[ConnectionManager] Connection submitted to executor...");
+                    if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Connection submitted to executor...");
                 }
 
             }catch (IOException e){
@@ -121,10 +108,10 @@ public class ConnectionManager {
                 // TODO: what to do ?
             }
             // Here the serverSocket is closed
-            if(!this.mute) System.out.println("[ConnectionManager] Shutting down...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Shutting down...");
         });
 
-        if(!mute) System.out.println("[ConnectionManager] Launching the thread...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Launching the thread...");
 
         t.start();
     }
@@ -135,12 +122,12 @@ public class ConnectionManager {
     // TODO: there is a problem, the MessageAck is a different class than the Message
     boolean sendMessageSynchronized(Message m, String ip, int port){
 
-        if(!this.mute) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
 
         NodeName destNode = new NodeName(ip, port);
 
         try {
-            if(!this.mute) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
             ClientSocketHandler handler = this.routingTable.get().getNextHop(destNode);
 
             return this.sendMessageSynchronized(m,handler);
@@ -154,36 +141,35 @@ public class ConnectionManager {
     }
 
     protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
-        if(!this.mute) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
         this.ackHandler.insertAckId(seqn, Thread.currentThread());
 
-        if(!this.mute) System.out.println("[ConnectionManager] Sending the message ...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Sending the message ...");
         boolean b = handler.sendMessage(m);
 
         if(!b) {
-            if(!this.mute) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
             return false;
         }
 
-        if(!this.mute) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
 
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
-            // TODO: wrap in constant
-            this.wait(5000);
+            this.wait(Config.ACK_TIMEOUT);
         } catch (InterruptedException e) {
             // Here some other thread will have removed the sequence number from the set so it means that the ack
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
-            if(!this.mute) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Ack received, can resume operations...");
             return true;
         }
 
         // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
-        if(!this.mute){
+        if(!Config.SNAPSHOT_MUTE){
             System.out.println("[ConnectionManager] Timeout reached waiting for ack...");
         }
         throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
@@ -332,9 +318,8 @@ public class ConnectionManager {
                 //TODO send to anchor node only isn't enough, discuss how to avoid message loops
             }
         // TODO: explicit exceptions ? Which is this one ?
-        } catch (Exception e) {
+        } catch (RoutingTableNodeNotPresentException e) {
             //TODO if ip not in routing table
-            return;
         }
     }
     /**

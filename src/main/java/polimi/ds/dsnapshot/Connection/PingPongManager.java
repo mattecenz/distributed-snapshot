@@ -7,14 +7,12 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 
 public class PingPongManager {
-    private boolean mute = false;
     private final ClientSocketHandler handler;
     private final ConnectionManager manager;
     private final int pingPongTimeout = Config.PINGPONG_TIMEOUT;
 
 
-    protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean mute) {
-        this.mute = mute;
+    protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler) {
         manager = connectionManager;
         this.handler = handler;
         //send first ping
@@ -31,7 +29,7 @@ public class PingPongManager {
     private void sendPing(){
         try {
             while (true) {
-                if(!this.mute) System.out.println("[PingPongManager] send ping");
+                if(!Config.SNAPSHOT_MUTE) System.out.println("[PingPongManager] send ping");
                 Thread.sleep(pingPongTimeout);
                 manager.sendMessageSynchronized(new PingPongMessage(true), handler);
             }

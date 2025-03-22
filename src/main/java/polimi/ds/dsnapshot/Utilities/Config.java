@@ -7,4 +7,8 @@ public class Config {
     public static final int PINGPONG_TIMEOUT = 5000;
 
     public static final double DIRECT_CONNECTION_PROBABILITY = 0.7;
+
+    public static final int ACK_TIMEOUT = 5000;
+
+    public static final boolean SNAPSHOT_MUTE = false;
 }
