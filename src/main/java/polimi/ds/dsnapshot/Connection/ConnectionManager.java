@@ -1,14 +1,11 @@
 package polimi.ds.dsnapshot.Connection;
 
+import polimi.ds.dsnapshot.Connection.Messages.*;
 import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
-import polimi.ds.dsnapshot.Connection.Messages.Message;
-import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
-import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
-import polimi.ds.dsnapshot.Connection.Messages.TokenMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
@@ -267,7 +264,9 @@ public class ConnectionManager {
                 //create socket connection with the joiner to instantiate a new direct connection
                 ClientSocketHandler joinerHandler = this.createDirectConnection(msg.getNewNodeName());
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg());
+                joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
+                //save the direct connection in the handler list
+                handlerList.add(joinerHandler);
                 //add node in routing table
                 this.routingTable.get().addPath(msg.getNewNodeName(), joinerHandler);
             }else {
@@ -375,7 +374,78 @@ public class ConnectionManager {
         } catch (RoutingTableNodeNotPresentException e) {
             //todo if node not in routing table
             System.err.println("[ConnectionManager] Node not present in routing table: " + e.getMessage());
+        NetNode n = new NetNode(destinationIp, destinationPort);
+
+        boolean ok = true;
+
+        do {
+            try {
+                ClientSocketHandler handler = routingTable.get().getNextHop(n);
+                handler.sendMessage(message);
+            } catch (RoutingTableException e) {
+                if (!this.mute)
+                    System.out.println("[ConnectionManager] Node not found in routing table, sending a discovery message to look for it");
+
+                // If everyhting went well then we can send again the message
+                ok = this.sendDiscoveryMessage(destinationIp, destinationPort);
+            }
+        }while(!ok);
+    }
+
+    /**
+     * Useful method to send messages along the spt
+     * @param msg message to be sent
+     * @return true if everything went well
+     */
+    // TODO: create and throw some exceptions here
+    private boolean sendAlongSPT(Message msg){
+        // TODO: what if anchor node is null? Need to notify the application
+        boolean ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
+
+        // TODO: case in which no children
+        for(ClientSocketHandler h : this.spt.get().getChildren()){
+            ok = h.sendMessage(msg) || ok;
         }
+
+        return ok;
+    }
+
+    /**
+     * Method invoked when we need to discover if a node is present in the network
+     * @param destinationIp ip of the node to discover
+     * @param destinationPort port of the node to discover
+     * @return true if everything went well
+     */
+    private synchronized boolean sendDiscoveryMessage(String destinationIp, int destinationPort){
+        MessageDiscovery msgd=new MessageDiscovery(this.getMachineIp(), this.port, destinationIp, destinationPort);
+
+        boolean ok = this.sendAlongSPT(msgd);
+
+        if(!ok) return false;
+
+        // Do the same as a synchronized message, wait for the reply
+        // TODO: a bit of duplicated code
+        this.ackHandler.insertAckId(msgd.getSequenceNumber(), Thread.currentThread());
+
+        try {
+            // Wait for a timeout, if ack has been received then all good, else something bad happened.
+            // TODO: wrap in constant
+            this.wait(5000);
+        } catch (InterruptedException e) {
+            // Here some other thread will have removed the sequence number from the set so it means that the ack
+            // Has been received correctly, and it is safe to return
+            // Still a bit ugly that you capture an exception and resume correctly...
+            if(!this.mute) System.out.println("[ConnectionManager] Discovery received, can resume operations...");
+            return true;
+        }
+
+        // If the method is not interrupted it means that the ack has not been received
+        // TODO: handle error of ack
+        if(!this.mute){
+            System.out.println("[ConnectionManager] Timeout reached waiting for discovery reply...");
+        }
+
+        return false;
     }
 
     /**
@@ -453,6 +523,15 @@ public class ConnectionManager {
                 //todo if message require to be forward
                 Event messageInputChannel = handler.getMessageInputChannel();
                 messageInputChannel.publish(m);
+            }
+            case MESSAGE_DISCOVERY -> {
+                // I need to check if I am the correct destination
+                MessageDiscovery msgd = (MessageDiscovery) m;
+
+                // TODO: continue
+                if(this.port==msgd.getDestinationPort() && this.getMachineIp().equals(msgd.getDestinationIP())){
+                    // In this case send back the message to the handler I received it.
+                }
             }
             case SNAPSHOT_TOKEN -> {
                 TokenMessage tokenMessage = (TokenMessage) m;
