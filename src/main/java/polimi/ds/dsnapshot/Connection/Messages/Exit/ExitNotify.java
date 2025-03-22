@@ -2,23 +2,32 @@ package polimi.ds.dsnapshot.Connection.Messages.Exit;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageID;
+import polimi.ds.dsnapshot.Connection.NodeName;
 
+/**
+ * Message created when we want to notify that a particular node has left the network
+ */
 public class ExitNotify extends Message {
-    private final String exitIp;
-    private final int exitPort;
+    /**
+     * Name of the node who left the network
+     */
+    private final NodeName exitName;
 
-    public ExitNotify(String exitIp, int exitPort) {
+    /**
+     * Constructor of the message
+     * @param exitName name of the node
+     */
+    public ExitNotify(NodeName exitName) {
         super(MessageID.MESSAGE_EXITNOTIFY, false);
 
-        this.exitIp = exitIp;
-        this.exitPort = exitPort;
+        this.exitName = exitName;
     }
 
-    public final String getExitIp() {
-        return exitIp;
-    }
-
-    public final int getExitPort() {
-        return exitPort;
+    /**
+     * Getter of the node name
+     * @return the name of the node who left the network
+     */
+    public final NodeName getExitName() {
+        return this.exitName;
     }
 }

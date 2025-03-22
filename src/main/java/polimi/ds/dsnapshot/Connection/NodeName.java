@@ -5,32 +5,45 @@ import java.util.Objects;
 
 /**
  * Represents a network node with an IP address and a port.
- * The class provides getters, setters, and methods to compare instances (equals and hashCode).
+ * We can assume it is a final class and it is used only in readonly mode.
  */
-public class NetNode implements Serializable {
+public class NodeName implements Serializable {
+
+    /**
+     * Internal Ip
+     */
     private String IP;
+    /**
+     * Internal port
+     */
     private int port;
 
-    public NetNode(String ip, int port){
+    /**
+     * Public constructor of the node name
+     * @param ip ip of the node
+     * @param port port of the node
+     */
+    public NodeName(String ip, int port){
         this.IP = ip;
         this.port = port;
     }
 
-    // <editor-fold desc="Getter and Setter">
+    // <editor-fold desc="Getters">
+
+    /**
+     * Getter of the node IP
+     * @return string containing the IP
+     */
     public String getIP() {
-        return IP;
+        return this.IP;
     }
 
-    public void setIP(String IP) {
-        this.IP = IP;
-    }
-
+    /**
+     * Getter of the node Port
+     * @return integer containing the port name
+     */
     public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
+        return this.port;
     }
     // </editor-fold>
     /**
@@ -45,7 +58,7 @@ public class NetNode implements Serializable {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
 
-        NetNode otherNetNode = (NetNode) other;
-        return port == otherNetNode.port && Objects.equals(IP, otherNetNode.IP);
+        NodeName otherNodeName = (NodeName) other;
+        return this.port == otherNodeName.port && Objects.equals(this.IP, otherNodeName.IP);
     }
 }

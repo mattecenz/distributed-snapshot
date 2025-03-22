@@ -2,6 +2,7 @@ package polimi.ds.dsnapshot.Connection.Messages.Join;
 
 import polimi.ds.dsnapshot.Connection.Messages.MessageID;
 import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
+import polimi.ds.dsnapshot.Connection.NodeName;
 
 /**
  * The JoinForwardMsg class represents a forwarded join request message
@@ -9,43 +10,27 @@ import polimi.ds.dsnapshot.Connection.Messages.MessageUtility;
  * additional information about the IP and port of an anchor node.
  */
 public class JoinForwardMsg  extends JoinMsg {
-
     /**
-     * Ip of the new node who joins the network
+     * Name of the new node who joined
      */
-    private final String ipNewNode;
-    /**
-     * Port of the new node who joins the network
-     */
-    private final int portNewNode;
+    private final NodeName newNodeName;
 
     /**
      * Constructs a forwarded join message with the specified information.
-     * @param ipNewNode The IP address of the anchor node.
-     * @param portNewNode The port of the anchor node.
+     * @param newNodeName The name of the new node
      */
-    public JoinForwardMsg(String ipNewNode, int portNewNode) {
+    public JoinForwardMsg(NodeName newNodeName) {
         super(MessageID.MESSAGE_JOINFORWARD);
 
-        this.ipNewNode = ipNewNode;
-        this.portNewNode = portNewNode;
+        this.newNodeName = newNodeName;
     }
 
     /**
-     * Returns the IP address of the new node.
+     * Returns the name address of the new node.
      *
-     * @return The new node's IP address.
+     * @return the node name
      */
-    public final String getIpNewNode() {
-        return this.ipNewNode;
-    }
-
-    /**
-     * Returns the port of the new node.
-     *
-     * @return The new node's port.
-     */
-    public final int getPortNewNode() {
-        return this.portNewNode;
+    public NodeName getNewNodeName() {
+        return this.newNodeName;
     }
 }

@@ -1,9 +1,11 @@
 package polimi.ds.dsnapshot;
 
 import org.jetbrains.annotations.TestOnly;
+import org.w3c.dom.Node;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
@@ -38,7 +40,8 @@ public class JavaDistributedSnapshot{
     public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
         try {
-            connectionManager.joinNetwork(anchorNodeIp,anchorNodePort);
+            NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
+            connectionManager.joinNetwork(anchorNodeName);
         } catch (IOException e) {
             throw new JavaDSException(e.getMessage()); //todo: wrap messages
         }
@@ -58,11 +61,13 @@ public class JavaDistributedSnapshot{
         }
     }
 
-    public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int DestinationPort) throws IOException {
+    public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int destinationPort) throws IOException {
         byte[] applicationMessageContente = SerializationUtils.serialize(messageContent);
 
-        ApplicationMessage applicationMessage = new ApplicationMessage(applicationMessageContente, destinationIp, DestinationPort, requireAck);
-        connectionManager.sendMessage(applicationMessage, destinationIp, DestinationPort);
+        NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
+
+        ApplicationMessage applicationMessage = new ApplicationMessage(applicationMessageContente, destinationNodeName, requireAck);
+        connectionManager.sendMessage(applicationMessage, destinationNodeName);
     }
 
     public void ReceiveMessage(CallbackContent callbackContent){

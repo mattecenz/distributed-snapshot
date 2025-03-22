@@ -37,7 +37,10 @@ public class ClientSocketHandler implements Runnable{
      * ping pong
      */
      private PingPongManager pingPongManager;
-
+    /**
+     * Name of the remote client associated to this socket
+     */
+    private final NodeName remoteNodeName;
     /**
      * Reference to the original connection manager for callback when a message is received
      */
@@ -69,6 +72,7 @@ public class ClientSocketHandler implements Runnable{
      */
     public ClientSocketHandler(Socket socket, ConnectionManager manager) {
         this.socket = socket;
+        this.remoteNodeName = new NodeName(this.socket.getInetAddress().getHostAddress(), this.socket.getPort());
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
@@ -100,7 +104,7 @@ public class ClientSocketHandler implements Runnable{
 
     private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
         try {
-            messageInputChannel = EventsBroker.createEventChannel(this.getRemoteIp()+":"+this.getRemotePort());
+            messageInputChannel = EventsBroker.createEventChannel(this.remoteNodeName.getIP()+":"+this.remoteNodeName.getPort());
         } catch (EventException e) {
             //todo decide
             throw new RuntimeException(e);
@@ -232,19 +236,11 @@ public class ClientSocketHandler implements Runnable{
     }
 
     /**
-     * Get IP of remote socket
-     * @return the ip
+     * Get the name of the remote socket
+     * @ return the name of the remote socket
      */
-    public String getRemoteIp(){
-        return this.socket.getInetAddress().getHostAddress();
-    }
-
-    /**
-     * Get the port of remote socket
-     * @return the port
-     */
-    public int getRemotePort(){
-        return this.socket.getPort();
+    public NodeName getRemoteNodeName(){
+        return this.remoteNodeName;
     }
 
     protected void startPingPong(){

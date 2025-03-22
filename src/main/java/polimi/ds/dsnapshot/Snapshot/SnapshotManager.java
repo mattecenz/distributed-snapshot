@@ -1,6 +1,7 @@
 package polimi.ds.dsnapshot.Snapshot;
 
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
+import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Utilities.Config;
@@ -37,25 +38,25 @@ public class SnapshotManager {
         }
     }
 
-    public synchronized boolean manageSnapshotToken(String snapshotCode, String channelIp, int channelPort) {
+    public synchronized boolean manageSnapshotToken(String snapshotCode, NodeName channelName) {
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
-            startNewSnapshot(snapshotCode, channelIp, channelPort);
+            startNewSnapshot(snapshotCode, channelName);
             return true;
         }
 
         //receive a token for an existing snapshot => stop listening channel
         try {
-            snapshot.notifyNewToken(channelIp+":"+channelPort);
+            snapshot.notifyNewToken(channelName.getIP()+":"+channelName.getPort());
         } catch (EventException e) {
             //todo decide
         }
         return false;
     }
 
-    private void startNewSnapshot(String snapshotCode, String channelIp, int channelPort){
+    private void startNewSnapshot(String snapshotCode, NodeName channelName){
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
-        eventNames.remove(channelIp+":"+channelPort);
+        eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
             Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager);
             snapshots.put(snapshotCode, nSnapshot);

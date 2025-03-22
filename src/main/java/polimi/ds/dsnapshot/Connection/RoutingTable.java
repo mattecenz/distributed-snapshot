@@ -1,74 +1,133 @@
 package polimi.ds.dsnapshot.Connection;
 
-import polimi.ds.dsnapshot.Exception.RoutingTableException;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 
 import java.io.Serializable;
 import java.util.Dictionary;
+import java.util.Enumeration;
+import java.util.Hashtable;
 
+/**
+ * Internal routing table of the connection manager.
+ * If needed it needs to be accessed atomically
+ */
 public class RoutingTable implements Serializable {
-    private Dictionary<NetNode, ClientSocketHandler> routingTableFields;
+    /**
+     * Internal dictionary of the form: (node name, client socket handler).
+     */
+    private Dictionary<NodeName, ClientSocketHandler> routingTableFields;
 
-    // Copy constructor
+    /**
+     * Explicit copy constructor of a routing table
+     * @param other other routing table to be copied
+     */
     public RoutingTable(RoutingTable other) {
-        this.routingTableFields = new java.util.Hashtable<>();
+        this.routingTableFields = new Hashtable<>();
         var keys = other.routingTableFields.keys();
         while (keys.hasMoreElements()) {
-            NetNode key = keys.nextElement();
+            NodeName key = keys.nextElement();
             this.routingTableFields.put(key, other.routingTableFields.get(key));
         }
     }
+
+    /**
+     * Default constructor with no entries in the table.
+     */
     public RoutingTable(){
-        routingTableFields = new java.util.Hashtable<>();
+        this.routingTableFields = new Hashtable<>();
     }
 
+    /**
+     * Method to explicitly cleear each entry of the routing table.
+     */
     protected void clearTable(){
-        routingTableFields = new java.util.Hashtable<>();
+        Enumeration<NodeName> keys = this.routingTableFields.keys();
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            this.routingTableFields.remove(key);
+        }
     }
 
+    /**
+     * Method to explicitly check if the routing table is empty
+     * @return true if it is empty
+     */
     protected boolean isEmpty(){
-        return routingTableFields.isEmpty();
+        return this.routingTableFields.isEmpty();
     }
 
-    void addPath(NetNode destination, ClientSocketHandler nextHopConnection) throws RoutingTableException {
-        if (routingTableFields.get(destination) != null) throw new RoutingTableException("destination already in the table");
+    /**
+     * Method to add a new entry in the routing table
+     * @param destination name of the destination node
+     * @param nextHopConnection handler to call when sending a message to the destination node
+     * @throws RoutingTableNodeAlreadyPresentException if the node is already present in the routing table
+     */
+    protected void addPath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeAlreadyPresentException {
+        if (this.routingTableFields.get(destination) != null) throw new RoutingTableNodeAlreadyPresentException();
 
-        routingTableFields.put(destination,nextHopConnection);
+        this.routingTableFields.put(destination,nextHopConnection);
     }
+
+    /**
+     * Utility method for printing the internal routing table
+     */
     protected void printRoutingTable() {
         System.out.println("Routing Table:");
         var keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
-            NetNode key = keys.nextElement();
+            NodeName key = keys.nextElement();
             System.out.println("Node: " + key + " -> Handler: " + routingTableFields.get(key));
         }
     }
 
-    protected void updatePath(NetNode destination, ClientSocketHandler nextHopConnection) throws RoutingTableException {
-        if(routingTableFields.get(destination) == null) throw new RoutingTableException("destination isn't present the table");
+    /**
+     * Method to update the path to a destination node
+     * @param destination destination to be updated
+     * @param nextHopConnection new client handler
+     * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
+     */
+    protected void updatePath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeNotPresentException {
+        if(this.routingTableFields.get(destination)==null) throw new RoutingTableNodeNotPresentException();
 
-        routingTableFields.put(destination, nextHopConnection);
+        this.routingTableFields.put(destination, nextHopConnection);
     }
 
-    protected void removePath(NetNode destination) throws RoutingTableException {
-        if(routingTableFields.get(destination) == null)throw new RoutingTableException("destination isn't present the table");
+    /**
+     * Method to explicitly remove the path from a specific destination node
+     * @param destination destination to be removed
+     * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
+     */
+    protected void removePath(NodeName destination) throws RoutingTableNodeNotPresentException {
+        if(this.routingTableFields.get(destination) == null) throw new RoutingTableNodeNotPresentException();
 
-        routingTableFields.remove(destination);
+        this.routingTableFields.remove(destination);
     }
 
+    /**
+     * Method to remove all the paths associated to the input handler
+     * @param handler client socket handler to be removed
+     */
     void removeAllIndirectPath(ClientSocketHandler handler){
-        var keys = routingTableFields.keys();
+        var keys = this.routingTableFields.keys();
         while (keys.hasMoreElements()) {
-            NetNode key = keys.nextElement();
-            if (routingTableFields.get(key).equals(handler)) {
-                routingTableFields.remove(key);
+            NodeName key = keys.nextElement();
+            if (this.routingTableFields.get(key).equals(handler)) {
+                this.routingTableFields.remove(key);
             }
         }
     }
 
-    ClientSocketHandler getNextHop(NetNode destination) throws RoutingTableException {
-        ClientSocketHandler nextHop = routingTableFields.get(destination);
+    /**
+     * Return the handler associated to the node name in input
+     * @param destination name of the node to be searched in the routing table
+     * @return the client socket handler, if found
+     * @throws RoutingTableNodeNotPresentException if the node was not found in the routing table
+     */
+    ClientSocketHandler getNextHop(NodeName destination) throws RoutingTableNodeNotPresentException {
+        ClientSocketHandler nextHop = this.routingTableFields.get(destination);
 
-        if(nextHop == null) throw new RoutingTableException("destination isn't present the table");
+        if(nextHop == null) throw new RoutingTableNodeNotPresentException();
         return nextHop;
     }
 }
