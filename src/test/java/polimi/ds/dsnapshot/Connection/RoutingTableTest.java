@@ -1,12 +1,5 @@
 package polimi.ds.dsnapshot.Connection;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-import polimi.ds.dsnapshot.Exception.RoutingTableException;
-
-import java.net.Socket;
-
 public class RoutingTableTest {
 
     private RoutingTable routingTable;

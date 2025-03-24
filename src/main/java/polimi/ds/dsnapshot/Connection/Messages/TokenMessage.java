@@ -1,25 +1,22 @@
 package polimi.ds.dsnapshot.Connection.Messages;
 
+import polimi.ds.dsnapshot.Connection.NodeName;
+
 public class TokenMessage extends Message {
     private final String snapshotId;
-    private final String snapshotCreatorIp;
-    private final int snapshotCreatorPort;
-    protected TokenMessage(String snapshotId, String snapshotCreatorIp, int snapshotCreatorPort) {
+    private final NodeName snapshotCreatorName;
+    protected TokenMessage(String snapshotId, NodeName snapshotCreatorName) {
         super(MessageID.SNAPSHOT_TOKEN);
 
         this.snapshotId = snapshotId;
-        this.snapshotCreatorIp = snapshotCreatorIp;
-        this.snapshotCreatorPort = snapshotCreatorPort;
+        this.snapshotCreatorName = snapshotCreatorName;
     }
 
     public String getSnapshotId() {
-        return snapshotId;
+        return this.snapshotId;
     }
 
-    public String getSnapshotCreatorIp() {
-        return snapshotCreatorIp;
-    }
-    public int getSnapshotCreatorPort() {
-        return snapshotCreatorPort;
+    public NodeName getSnapshotCreatorName() {
+        return this.snapshotCreatorName;
     }
 }

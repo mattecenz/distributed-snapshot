@@ -5,6 +5,7 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Utilities.Config;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -37,15 +38,14 @@ public class ClientSocketHandler implements Runnable{
      * ping pong
      */
      private PingPongManager pingPongManager;
-
+    /**
+     * Name of the remote client associated to this socket
+     */
+    private final NodeName remoteNodeName;
     /**
      * Reference to the original connection manager for callback when a message is received
      */
     private final ConnectionManager manager;
-    /**
-     * Mute attribute of the server
-     */
-    private boolean mute = false;
 
     /**
      * Boolean to check  if the socket handler is ready
@@ -69,6 +69,7 @@ public class ClientSocketHandler implements Runnable{
      */
     public ClientSocketHandler(Socket socket, ConnectionManager manager) {
         this.socket = socket;
+        this.remoteNodeName = new NodeName(this.socket.getInetAddress().getHostAddress(), this.socket.getPort());
         this.available = new AtomicBoolean(false);
         this.listening = new AtomicBoolean(false);
         this.manager = manager;
@@ -76,16 +77,6 @@ public class ClientSocketHandler implements Runnable{
         this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
         System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
-    }
-
-    /**
-     * Constructor of the handler with the mute option
-     * @param socket socket to be managed
-     * @param mute specify if the handler is mute or not
-     */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager, boolean mute) {
-        this(socket, manager);
-        this.mute = mute;
     }
 
     /**
@@ -100,7 +91,7 @@ public class ClientSocketHandler implements Runnable{
 
     private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
         try {
-            messageInputChannel = EventsBroker.createEventChannel(this.getRemoteIp()+":"+this.getRemotePort());
+            messageInputChannel = EventsBroker.createEventChannel(this.remoteNodeName.getIP()+":"+this.remoteNodeName.getPort());
         } catch (EventException e) {
             //todo decide
             throw new RuntimeException(e);
@@ -119,7 +110,7 @@ public class ClientSocketHandler implements Runnable{
     public void run() {
         // Set the timeout
         try {
-            if(!this.mute) System.out.println("[SocketHandler] Setting socket timeout... ");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Setting socket timeout... ");
             // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
             // will sleep, else an exception is generated.
             // TODO: wrap in a utils class
@@ -132,7 +123,7 @@ public class ClientSocketHandler implements Runnable{
 
         // Create the object output stream
         try{
-            if(!this.mute) System.out.println("[SocketHandler] Creating the output stream... ");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Creating the output stream... ");
             this.out=new ObjectOutputStream(this.socket.getOutputStream());
         }
         catch (IOException e){
@@ -148,7 +139,7 @@ public class ClientSocketHandler implements Runnable{
 
     public void close() throws IOException {
         socket.close();
-        if(!this.mute) System.out.println("[SocketHandler] Socket closed!");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Socket closed!");
     }
 
     /**
@@ -156,14 +147,14 @@ public class ClientSocketHandler implements Runnable{
      */
     private void launchInboundMessagesThread(){
 
-        //NB: we notice that this.mute is a shared variable, but always accessed as a read, so no problem there.
+        //NB: we notice that Config.SNAPSHOT_MUTE is a shared variable, but always accessed as a read, so no problem there.
 
-        if(!this.mute) System.out.println("[SocketHandler] Creating input stream thread... ");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Creating input stream thread... ");
 
         Thread t = new Thread( ()->{
                 // Create the input stream as above
             try{
-                if(!this.mute) System.out.println("[SocketHandlerIN] Creating input stream...");
+                if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Creating input stream...");
                 this.in=new ObjectInputStream(this.socket.getInputStream());
             }catch (IOException e){
                 // TODO: what to do ?
@@ -176,9 +167,9 @@ public class ClientSocketHandler implements Runnable{
             // Read a generic message and decide what to do
             while(listening.get()){
                 try {
-                    if(!this.mute) System.out.println("[SocketHandlerIN] Listening... ");
+                    if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Listening... ");
                     Message m = (Message) this.in.readObject();
-                    if(!this.mute) System.out.println("[SocketHandlerIN] Message received!");
+                    if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Message received!");
                     // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
@@ -193,7 +184,7 @@ public class ClientSocketHandler implements Runnable{
             }
         );
 
-        if(!mute) System.out.println("[SocketHandler] Launching input stream thread... ");
+        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Launching input stream thread... ");
 
         t.start();
 
@@ -209,20 +200,20 @@ public class ClientSocketHandler implements Runnable{
      */
     public boolean sendMessage(Message m){
         synchronized (this.outLock) {
-            if(!this.mute) System.out.println("[SocketHandler] Lock acquired...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Lock acquired...");
             // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
             if (!this.available.get()) {
-                if (!this.mute) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
+                if (!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
                 return false;
             }
 
             try {
-                if (!this.mute) System.out.println("[SocketHandler] Sending message...");
+                if (!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Sending message...");
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
             } catch (IOException e) {
-                if (!this.mute) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
+                if (!Config.SNAPSHOT_MUTE) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
                 // TODO: what to do ?
                 return false;
             }
@@ -231,16 +222,16 @@ public class ClientSocketHandler implements Runnable{
         }
     }
 
-    public String getRemoteIp(){
-        return this.socket.getInetAddress().getHostAddress();
-    }
-
-    public int getRemotePort(){
-        return this.socket.getPort();
+    /**
+     * Get the name of the remote socket
+     * @ return the name of the remote socket
+     */
+    public NodeName getRemoteNodeName(){
+        return this.remoteNodeName;
     }
 
     protected void startPingPong(){
-        pingPongManager = new PingPongManager(manager,this, mute);
+        pingPongManager = new PingPongManager(manager,this);
     }
 
 

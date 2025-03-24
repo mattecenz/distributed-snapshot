@@ -3,9 +3,7 @@ package polimi.ds.dsnapshot.Snapshot;
 import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
-import polimi.ds.dsnapshot.Connection.Messages.Message;
-import polimi.ds.dsnapshot.Connection.NetNode;
-import polimi.ds.dsnapshot.Connection.RoutingTable;
+import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.Event;
@@ -16,18 +14,13 @@ import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Stack;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
-import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 
 public class Snapshot {
@@ -47,17 +40,15 @@ public class Snapshot {
         // Format the timestamp into a string, excluding seconds and replacing colons with underscores
         String timestampStr = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss").format(now);
 
-
         // File name & path
         this.snapshotPath += snapshotCode + "_" + timestampStr + ".bin";
 
         JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
         ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
         byte[] applicationState = SerializationUtils.serialize(applicationLayerInterface.getApplicationState());
-        ClientSocketHandler anchorNodeAndler = connectionManager.getSpt().getAnchorNodeHandler();
+        ClientSocketHandler anchorNodeHandler = connectionManager.getSpt().getAnchorNodeHandler();
 
-        NetNode anchorNode = new NetNode(anchorNodeAndler.getRemoteIp(),anchorNodeAndler.getRemotePort());
-        snapshotState = new SnapshotState(anchorNode,connectionManager.getRoutingTable(),applicationState);
+        snapshotState = new SnapshotState(anchorNodeHandler.getRemoteNodeName(),connectionManager.getRoutingTable(),applicationState);
         //ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
 
         if(eventNames.isEmpty()) {

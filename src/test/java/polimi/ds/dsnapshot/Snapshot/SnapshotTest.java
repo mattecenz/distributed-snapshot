@@ -69,8 +69,7 @@ public class SnapshotTest {
 
         //fake anchor node
         mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
-        when(clientSocketHandlerMock.getRemoteIp()).thenReturn("127.0.0.1");
-        when(clientSocketHandlerMock.getRemotePort()).thenReturn(1234);
+        when(clientSocketHandlerMock.getRemoteNodeName()).thenReturn(new NodeName("127.0.0.1",1234));
 
         assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggieri:0"));
 
@@ -78,7 +77,7 @@ public class SnapshotTest {
         CountDownLatch latch = new CountDownLatch(1);
         new Thread(() -> {
             try {
-                snapshotManger.manageSnapshotToken("testS1", "friggieri", 0);
+                snapshotManger.manageSnapshotToken("testS1", new NodeName("friggieri",0));
             } finally {
                 latch.countDown();
             }
@@ -162,8 +161,7 @@ public class SnapshotTest {
 
         //fake anchor node
         mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
-        when(clientSocketHandlerMock.getRemoteIp()).thenReturn("127.0.0.1");
-        when(clientSocketHandlerMock.getRemotePort()).thenReturn(1234);
+        when(clientSocketHandlerMock.getRemoteNodeName()).thenReturn(new NodeName("127.0.0.1",1234));
 
         //messages
 
@@ -232,10 +230,10 @@ public class SnapshotTest {
     private void socketEmulator(String ip, int port, String message) throws EventException {
         if(Objects.equals(message, "T")){
             System.out.println("token received from channel: " + ip + ":" + port);
-            snapshotManger.manageSnapshotToken("testS2", ip, port);
+            snapshotManger.manageSnapshotToken("testS2", new NodeName(ip,port));
         }else {
             byte [] messageBytes = message.getBytes();
-            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(messageBytes,ip,port,false));
+            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(messageBytes,new NodeName(ip,port),false));
         }
     }
     private static class ExampleApplicationInterface implements ApplicationLayerInterface {
