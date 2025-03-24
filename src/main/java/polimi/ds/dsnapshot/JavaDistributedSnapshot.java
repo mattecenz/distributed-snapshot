@@ -81,5 +81,8 @@ public class JavaDistributedSnapshot{
         return applicationLayerInterface;
     }
 
+    public void startNewSnapshot(){
+        connectionManager.startNewSnapshot();
+    }
     // public void sendMessage()
 }

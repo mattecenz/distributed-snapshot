@@ -11,4 +11,6 @@ public class Config {
     public static final int ACK_TIMEOUT = 5000;
 
     public static final boolean SNAPSHOT_MUTE = false;
+
+    public static final String SNAPSHOT_CODE_ADMISSIBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"; //TODO
 }
