@@ -264,7 +264,7 @@ public class ConnectionManager {
                 //create socket connection with the joiner to instantiate a new direct connection
                 ClientSocketHandler joinerHandler = this.createDirectConnection(msg.getNewNodeName());
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg(Arrays.toString(this.getMachineIp()),this.port));
+                joinerHandler.sendMessage(new DirectConnectionMsg());
                 //save the direct connection in the handler list
                 handlerList.add(joinerHandler);
                 //add node in routing table
@@ -367,27 +367,19 @@ public class ConnectionManager {
     // </editor-fold>
 
     public void sendMessage(Message message, NodeName destinationNodeName){
-        //todo ackMessage
-        try {
-            ClientSocketHandler handler = routingTable.get().getNextHop(destinationNodeName);
-            handler.sendMessage(message);
-        } catch (RoutingTableNodeNotPresentException e) {
-            //todo if node not in routing table
-            System.err.println("[ConnectionManager] Node not present in routing table: " + e.getMessage());
-        NetNode n = new NetNode(destinationIp, destinationPort);
 
         boolean ok = true;
 
         do {
             try {
-                ClientSocketHandler handler = routingTable.get().getNextHop(n);
+                ClientSocketHandler handler = routingTable.get().getNextHop(destinationNodeName);
                 handler.sendMessage(message);
-            } catch (RoutingTableException e) {
-                if (!this.mute)
+            } catch (RoutingTableNodeNotPresentException e) {
+                if (!Config.SNAPSHOT_MUTE)
                     System.out.println("[ConnectionManager] Node not found in routing table, sending a discovery message to look for it");
 
                 // If everyhting went well then we can send again the message
-                ok = this.sendDiscoveryMessage(destinationIp, destinationPort);
+                ok = this.sendDiscoveryMessage(destinationNodeName);
             }
         }while(!ok);
     }
@@ -412,12 +404,11 @@ public class ConnectionManager {
 
     /**
      * Method invoked when we need to discover if a node is present in the network
-     * @param destinationIp ip of the node to discover
-     * @param destinationPort port of the node to discover
+     * @param destinationNodeName name of the node to discover
      * @return true if everything went well
      */
-    private synchronized boolean sendDiscoveryMessage(String destinationIp, int destinationPort){
-        MessageDiscovery msgd=new MessageDiscovery(this.getMachineIp(), this.port, destinationIp, destinationPort);
+    private synchronized boolean sendDiscoveryMessage(NodeName destinationNodeName){
+        MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
 
         boolean ok = this.sendAlongSPT(msgd);
 
@@ -435,13 +426,13 @@ public class ConnectionManager {
             // Here some other thread will have removed the sequence number from the set so it means that the ack
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
-            if(!this.mute) System.out.println("[ConnectionManager] Discovery received, can resume operations...");
+            if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Discovery received, can resume operations...");
             return true;
         }
 
         // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
-        if(!this.mute){
+        if(!Config.SNAPSHOT_MUTE){
             System.out.println("[ConnectionManager] Timeout reached waiting for discovery reply...");
         }
 
@@ -529,9 +520,6 @@ public class ConnectionManager {
                 MessageDiscovery msgd = (MessageDiscovery) m;
 
                 // TODO: continue
-                if(this.port==msgd.getDestinationPort() && this.getMachineIp().equals(msgd.getDestinationIP())){
-                    // In this case send back the message to the handler I received it.
-                }
             }
             case SNAPSHOT_TOKEN -> {
                 TokenMessage tokenMessage = (TokenMessage) m;
