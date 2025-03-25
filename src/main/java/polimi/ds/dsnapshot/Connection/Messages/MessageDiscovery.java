@@ -56,7 +56,7 @@ public class MessageDiscovery extends Message {
      * Getter of the destination name
      * @return destination node name
      */
-    public NodeName getOriginPort() {
+    public NodeName getDestinationName() {
         return this.destinationName;
     }
 }
