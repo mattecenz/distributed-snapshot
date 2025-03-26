@@ -23,13 +23,16 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 /**
@@ -76,44 +79,44 @@ public class ConnectionManager {
             thisIP = localHost.getHostAddress();
         }
         catch(UnknownHostException e){
-            System.err.println("[ConnectionManager] Host not connected to network, cannot do anything: "+e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Host not connected to network, cannot do anything:", e);
         }
         this.name = new NodeName(thisIP, port);
 
-        System.out.println("[ConnectionManager] ConnectionManager created successfully...");
+        LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully...", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
 
     public void start(){
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Preparing the thread...");
+        LoggerManager.getInstance().mutableInfo("Preparing the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
         // This start has to launch another thread.
 
         Thread t = new Thread(()->{
 
             try(ServerSocket serverSocket = new ServerSocket(this.name.getPort())){
-                if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Created listening socket on port "+this.name.getPort()+" ...");
+                LoggerManager.getInstance().mutableInfo("Created listening socket on port "+this.name.getPort()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
+                LoggerManager.getInstance().mutableInfo("Created thread pool...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
-                if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Created thread pool...");
 
                 while(true){
-                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Waiting for connection...");
+                    LoggerManager.getInstance().mutableInfo("Waiting for connection...", Optional.of(this.getClass().getName()), Optional.of("start"));
                     Socket socket = serverSocket.accept();
-                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Accepted connection from " + socket.getRemoteSocketAddress()+" ...");
+                    LoggerManager.getInstance().mutableInfo("Accepted connection from " + socket.getRemoteSocketAddress()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
                     ClientSocketHandler handler = new ClientSocketHandler(socket, this);
                     this.handlerList.add(handler);
                     ThreadPool.submit(handler);
-                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Connection submitted to executor...");
+                    LoggerManager.getInstance().mutableInfo("Connection submitted to executor...", Optional.of(this.getClass().getName()), Optional.of("start"));
                 }
 
             }catch (IOException e){
-                System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                 // TODO: what to do ?
             }
             // Here the serverSocket is closed
             if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Shutting down...");
         });
 
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Launching the thread...");
+        LoggerManager.getInstance().mutableInfo("Launching the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
         t.start();
     }
@@ -124,39 +127,40 @@ public class ConnectionManager {
     // TODO: there is a problem, the MessageAck is a different class than the Message
     boolean sendMessageSynchronized(Message m, String ip, int port){
 
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Sending a message to "+ip+":"+port+"...");
+        LoggerManager.getInstance().mutableInfo("Sending a message to "+ip+":"+port+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
 
         NodeName destNode = new NodeName(ip, port);
 
         try {
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Checking the routing table for the next hop...");
+            LoggerManager.getInstance().mutableInfo("Checking the routing table for the next hop...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             ClientSocketHandler handler = this.routingTable.get().getNextHop(destNode);
 
             return this.sendMessageSynchronized(m,handler);
         } catch (RoutingTableNodeNotPresentException e) {
-            System.err.println("[ConnectionManager] Routing table node not present: " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "RoutingTableNodeNotPresentException", e);
             return false;
         } catch (ConnectionException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "ConnectionException", e);
             //todo: ack not received
             return false;
         }
     }
 
     protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Preparing for receiving an ack...");
+        LoggerManager.getInstance().mutableInfo("Preparing for receiving an ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
         this.ackHandler.insertAckId(seqn, Thread.currentThread());
 
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Sending the message ...");
+        LoggerManager.getInstance().mutableInfo("Sending the message ...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         boolean b = handler.sendMessage(m);
 
         if(!b) {
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Something went wrong while sending the message...");
+            LoggerManager.getInstance().mutableInfo("Something went wrong while sending the message...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return false;
         }
 
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Sent, now waiting for ack...");
+        LoggerManager.getInstance().mutableInfo("Sent, now waiting for ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
 
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
@@ -165,14 +169,14 @@ public class ConnectionManager {
             // Here some other thread will have removed the sequence number from the set so it means that the ack
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Ack received, can resume operations...");
+            LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return true;
         }
 
         // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
         if(!Config.getBoolean("snapshot.mute")){
-            System.out.println("[ConnectionManager] Timeout reached waiting for ack...");
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
         }
         throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
     }
@@ -224,7 +228,7 @@ public class ConnectionManager {
             this.sendMessageSynchronized(msg,handler);
         } catch (ConnectionException e) {
             //todo: ack not received
-            System.err.println("[ConnectionManager] Error waiting for ack: " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Error waiting for ack:", e);
             return;
         }
         this.spt.get().setAnchorNodeHandler(handler);
@@ -278,7 +282,7 @@ public class ConnectionManager {
             }
         } catch (RoutingTableNodeAlreadyPresentException e) {
             // Not much we can do
-            System.err.println("[ConnectionManager] We should not be here, a node already in the routing table asked to connect : " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node already in the routing table asked to connect", e);
         }
     }
     // </editor-fold>
@@ -321,6 +325,7 @@ public class ConnectionManager {
             }
         // TODO: explicit exceptions ? Which is this one ?
         } catch (RoutingTableNodeNotPresentException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "We should not be here, a node not present in the routing table send an exit", e);
             //TODO if ip not in routing table
         }
     }
@@ -394,7 +399,7 @@ public class ConnectionManager {
             handler.sendMessage(message);
         } catch (RoutingTableNodeNotPresentException e) {
             //todo if node not in routing table
-            System.err.println("[ConnectionManager] Node not present in routing table: " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not present in routing table", e);
         }
     }
 
@@ -422,7 +427,7 @@ public class ConnectionManager {
                     this.joinNewNode(handler);
                 } catch (UnknownHostException e) {
                     // TODO: decide
-                    System.err.println("[ConnectionManager] Unknown host: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Unknown host", e);
                 }
             }
             case MESSAGE_EXIT -> {
@@ -430,7 +435,7 @@ public class ConnectionManager {
                     this.receiveExit((ExitMsg) m, handler);
                 } catch (IOException e) {
                     // TODO: decide
-                    System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                 }
             }
             case MESSAGE_EXITNOTIFY -> {
@@ -441,7 +446,7 @@ public class ConnectionManager {
                     this.receiveJoinForward((JoinForwardMsg) m, handler);
                 } catch (IOException e) {
                     // TODO: decide
-                    System.err.println("[ConnectionManager] IO exception: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                 }
             }
             case MESSAGE_DIRECTCONNECTION -> {
@@ -450,7 +455,7 @@ public class ConnectionManager {
                 }
                 catch (RoutingTableNodeAlreadyPresentException e){
                     // TODO: decide, i dont know what these exceptions do
-                    System.err.println("[ConnectionManager] Routing table exception: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Routing table exception", e);
                 }
             }
             case MESSAGE_ACK -> {
@@ -464,7 +469,7 @@ public class ConnectionManager {
                         this.spt.get().addChild(handler);
                     } catch (SpanningTreeException e) {
                         // todo: decide
-                        System.err.println("[ConnectionManager] Spanning tree exception: " + e.getMessage());
+                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Spanning tree exception", e);
                     }
                     handler.startPingPong();
                 }

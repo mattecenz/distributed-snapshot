@@ -6,13 +6,16 @@ import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class ClientSocketHandler implements Runnable{
 
@@ -76,7 +79,7 @@ public class ClientSocketHandler implements Runnable{
         this.outLock = new Object();
         this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
-        System.out.println("[SocketHandler] Socket connected at address: " + socket.getInetAddress() + ":" + socket.getPort());
+        LoggerManager.getInstance().mutableInfo("Socket connected at address:" + socket.getInetAddress() + ":" + socket.getPort(), Optional.of(this.getClass().getName()), Optional.of("ClientSocketHandler"));
     }
 
     /**
@@ -110,7 +113,7 @@ public class ClientSocketHandler implements Runnable{
     public void run() {
         // Set the timeout
         try {
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Setting socket timeout... ");
+            LoggerManager.getInstance().mutableInfo("Setting socket timeout...", Optional.of(this.getClass().getName()), Optional.of("run"));
             // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
             // will sleep, else an exception is generated.
             // TODO: wrap in a utils class
@@ -118,28 +121,27 @@ public class ClientSocketHandler implements Runnable{
         }
         catch (SocketException e) {
             //TODO: what to do ?
-            System.err.println("Socket exception: " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Socket", e);
         }
 
         // Create the object output stream
         try{
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Creating the output stream... ");
+            LoggerManager.getInstance().mutableInfo("Creating the output stream...", Optional.of(this.getClass().getName()), Optional.of("run"));
             this.out=new ObjectOutputStream(this.socket.getOutputStream());
         }
         catch (IOException e){
             //TODO: what to do ?
-            System.err.println("IO exception: " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
         }
 
         // Now we need two threads. This one we will use it as sender of messages, the other will be used as receiver.
 
         this.launchInboundMessagesThread();
-
     }
 
     public void close() throws IOException {
         socket.close();
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Socket closed!");
+        LoggerManager.getInstance().mutableInfo("Socket closed!", Optional.of(this.getClass().getName()), Optional.of("close"));
     }
 
     /**
@@ -148,17 +150,16 @@ public class ClientSocketHandler implements Runnable{
     private void launchInboundMessagesThread(){
 
         //NB: we notice that Config.SNAPSHOT_MUTE is a shared variable, but always accessed as a read, so no problem there.
-
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Creating input stream thread... ");
+        LoggerManager.getInstance().mutableInfo("Creating input stream thread...", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
 
         Thread t = new Thread( ()->{
                 // Create the input stream as above
             try{
-                if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Creating input stream...");
+                LoggerManager.getInstance().mutableInfo("Creating input stream..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                 this.in=new ObjectInputStream(this.socket.getInputStream());
             }catch (IOException e){
                 // TODO: what to do ?
-                System.err.println("IO exception: " + e.getMessage());
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
             }
 
             // Now we are ready to listen
@@ -167,16 +168,16 @@ public class ClientSocketHandler implements Runnable{
             // Read a generic message and decide what to do
             while(listening.get()){
                 try {
-                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Listening... ");
+                    LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                     Message m = (Message) this.in.readObject();
-                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Message received!");
+                    LoggerManager.getInstance().mutableInfo("Message received!", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                     // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
-                    System.err.println("[SocketHandlerIN] IO exception: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                     // TODO: what to do ?
                 }catch (ClassNotFoundException e){
-                    System.err.println("[SocketHandlerIN] ClassNotFoundException: " + e.getMessage());
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
                     // TODO: what to do ?
                 }
             }
@@ -184,7 +185,7 @@ public class ClientSocketHandler implements Runnable{
             }
         );
 
-        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Launching input stream thread... ");
+        LoggerManager.getInstance().mutableInfo("Launching input stream thread...", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
 
         t.start();
 
@@ -200,20 +201,20 @@ public class ClientSocketHandler implements Runnable{
      */
     public boolean sendMessage(Message m){
         synchronized (this.outLock) {
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Lock acquired...");
+            LoggerManager.getInstance().mutableInfo("Lock acquired...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
             // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
             if (!this.available.get()) {
-                if (!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
+                LoggerManager.getInstance().mutableInfo("Not yet ready to send message! Try again...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 return false;
             }
 
             try {
-                if (!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Sending message...");
+                LoggerManager.getInstance().mutableInfo("Sending message...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
             } catch (IOException e) {
-                if (!Config.getBoolean("snapshot.mute")) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                 // TODO: what to do ?
                 return false;
             }

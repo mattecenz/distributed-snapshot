@@ -18,6 +18,7 @@ import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
@@ -41,6 +42,8 @@ public class SnapshotTest {
 
     @BeforeEach
     public void setup() {
+        LoggerManager.start(104);
+
         MockitoAnnotations.openMocks(this);
 
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
@@ -69,8 +72,8 @@ public class SnapshotTest {
         when(connectionManagerMock.getRoutingTable()).thenReturn(mockRoutingTable);
 
         //fake anchor node
-        mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
         when(clientSocketHandlerMock.getRemoteNodeName()).thenReturn(new NodeName("127.0.0.1",1234));
+        mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
 
         assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggieri:0"));
 
@@ -161,11 +164,10 @@ public class SnapshotTest {
         when(connectionManagerMock.getRoutingTable()).thenReturn(mockRoutingTable);
 
         //fake anchor node
-        mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
         when(clientSocketHandlerMock.getRemoteNodeName()).thenReturn(new NodeName("127.0.0.1",1234));
+        mockSpt.setAnchorNodeHandler(clientSocketHandlerMock);
 
         //messages
-
         Stack<String> snapshotStarterStack= new Stack<>();
         snapshotStarterStack.addAll(snapshotStarterMessages.reversed());
 

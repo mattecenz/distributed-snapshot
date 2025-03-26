@@ -84,6 +84,10 @@ public class LoggerManager {
         return logger;
     }
 
+    public static Logger instanceGetLogger(){
+        return getInstance().getLogger();
+    }
+
     public void mutableInfo(String msg, Optional<String> className, Optional<String> methodName) {
         if(!mute && started){
             String resolvedClass =  className.orElse(this.getClass().getName());
