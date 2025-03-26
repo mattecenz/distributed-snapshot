@@ -1,9 +1,11 @@
 package polimi.ds.dapplication;
 
+import polimi.ds.dapplication.Message.StringMessage;
 import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 
+import java.io.IOException;
 import java.util.Scanner;
 
 public class Main {
@@ -19,9 +21,9 @@ public class Main {
     private final static AppUtility appUtility = new AppUtility();
 
     /**
-     * Lock of the screen component to avoid weird shenanigans with threads
+     * Internal state of the application
      */
-    private final static Object screenLock = new Object();
+    private final static AppState appState = new AppState();
 
     /**
      * Regex to check that the inserted ip is correct
@@ -34,16 +36,6 @@ public class Main {
     private final static String regexYN = "y|Y|n|N";
 
     /**
-     * Static function used to print on the screen in a thread-safe manner
-     * @param message message to be print
-     */
-    private static void printMessageTS(String message){
-        synchronized (screenLock){
-            System.out.println(message);
-        }
-    }
-
-    /**
      * Retry the input until the regex is not matched
      * @param regex regex to match
      * @return the correct input string
@@ -51,7 +43,7 @@ public class Main {
     private static String retryInput(String regex){
         String input = scanner.nextLine();
         while(!input.trim().matches(regex)){
-        printMessageTS("Invalid input, please try again ");
+        SystemOutTS.println("Invalid input, please try again ");
             input = scanner.nextLine();
         }
         return input.trim();
@@ -62,18 +54,22 @@ public class Main {
         while(true){
             // send a message to a certain node
 
-            System.out.print("Enter ip of the receiver of the message: ");
+            SystemOutTS.print("Enter ip of the receiver of the message: ");
             String ip = retryInput(regexIp);
 
-            System.out.print("Enter port of the receiver of the message: ");
+            SystemOutTS.print("Enter port of the receiver of the message: ");
             int port = scanner.nextInt();
 
-            System.out.print("Enter text message to send: ");
+            SystemOutTS.print("Enter text message to send: ");
             String message = scanner.nextLine();
 
-            // create message
-            // TODO: finish the application layer interface
-            // JavaDistributedSnapshot.sendMessage();
+            StringMessage sm = new StringMessage(message);
+
+            try {
+                JavaDistributedSnapshot.getInstance().sendMessage(sm, false, ip, port);
+            } catch (IOException e) {
+                System.err.println("The library threw an IOException: " + e.getMessage());
+            }
 
         }
 
@@ -81,41 +77,44 @@ public class Main {
 
     private static void joinNetwork(){
 
-        System.out.print("Enter ip address: ");
+        SystemOutTS.print("Enter ip address: ");
         String ip = retryInput(regexIp);
 
         // Avoid error checking on the port for the moment
-        System.out.print("Enter port: ");
+        SystemOutTS.print("Enter port: ");
         int port = scanner.nextInt();
 
         try {
-            JavaDistributedSnapshot.joinNetwork(appUtility, ip, port);
+            JavaDistributedSnapshot.getInstance().joinNetwork(appUtility, ip, port);
+
+            // At this moment we have a new connection so we can do whatever we want
+            applicationLoop();
+
+            // TODO: add more detailed exceptions
         } catch (JavaDSException e) {
             // The error output stream for the moment can be used without locks
             System.err.println("We caught an exception! "+e.getMessage());
         }
 
-        // At this moment we have a new connection so we can do whatever we want
-        applicationLoop();
-
+        // Exit from the application if an exception is raised
     }
 
     private static void createNetwork(){
 
-        System.out.print("Enter port of the client you want to create: ");
+        SystemOutTS.print("Enter port of the client you want to create: ");
         int port = scanner.nextInt();
 
         // TODO: is it good ?
-        JavaDistributedSnapshot.startSocketConnection(port);
+        JavaDistributedSnapshot.getInstance().startSocketConnection(port);
 
         applicationLoop();
     }
 
     public static void main(String[] args) {
-        System.out.println("Hello, World!");
+        SystemOutTS.println("Hello, World!");
 
         // Ask the client if he wants to join a network or not
-        System.out.print("Do you want to create a new network? [y/n] ");
+        SystemOutTS.print("Do you want to create a new network? [y/n] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){
@@ -124,5 +123,9 @@ public class Main {
         else{
             joinNetwork();
         }
+    }
+
+    public static AppState getAppState(){
+        return appState;
     }
 }
