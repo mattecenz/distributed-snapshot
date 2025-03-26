@@ -49,26 +49,65 @@ public class Main {
         return input.trim();
     }
 
+    private static void sendMessage(){
+        SystemOutTS.print("Enter ip of the receiver of the message: ");
+        String ip = retryInput(regexIp);
+
+        SystemOutTS.print("Enter port of the receiver of the message: ");
+        int port = scanner.nextInt();
+
+        SystemOutTS.print("Enter text message to send: ");
+        String message = scanner.nextLine();
+
+        StringMessage sm = new StringMessage(message);
+
+        try {
+            JavaDistributedSnapshot.getInstance().sendMessage(sm, false, ip, port);
+        } catch (IOException e) {
+            System.err.println("The library threw an IOException: " + e.getMessage());
+        }
+    }
+
     private static void applicationLoop(){
 
         while(true){
             // send a message to a certain node
 
-            SystemOutTS.print("Enter ip of the receiver of the message: ");
-            String ip = retryInput(regexIp);
+            SystemOutTS.print("Input the command you want to run:");
 
-            SystemOutTS.print("Enter port of the receiver of the message: ");
-            int port = scanner.nextInt();
+            String command = scanner.nextLine();
 
-            SystemOutTS.print("Enter text message to send: ");
-            String message = scanner.nextLine();
-
-            StringMessage sm = new StringMessage(message);
-
-            try {
-                JavaDistributedSnapshot.getInstance().sendMessage(sm, false, ip, port);
-            } catch (IOException e) {
-                System.err.println("The library threw an IOException: " + e.getMessage());
+            if(command.startsWith("/")){
+                switch (command.toLowerCase().substring(1)){
+                    case "msg" -> {
+                        sendMessage();
+                    }
+                    case "exit" -> {
+                        // TODO
+                        SystemOutTS.println("Stay tuned, this will be implemented in the next version :)");
+                    }
+                    case "snapshot" ->{
+                        // TODO
+                        SystemOutTS.println("Stay tuned, this will be implemented in the next version :)");
+                    }
+                    case "surprise" ->{
+                        surprise();
+                    }
+                    case "help" -> {
+                        SystemOutTS.println("All commands are: \n" +
+                                "msg:\t send a message to a user of the network \n" +
+                                "exit:\t exit the network and the program \n" +
+                                "snapshot:\t manually start a snapshot \n" +
+                                "surprise:\t are you brave enough to discover it? \n"+
+                                "");
+                    }
+                    case null, default -> {
+                        SystemOutTS.println("Invalid command, please try again...");
+                    }
+                }
+            }
+            else{
+                SystemOutTS.println("Invalid command. The right syntax is \"/<command>\" ");
             }
 
         }
@@ -127,5 +166,25 @@ public class Main {
 
     public static AppState getAppState(){
         return appState;
+    }
+
+    private static void surprise(){
+        SystemOutTS.println("""
+                ⢀⡴⠑⡄⠀⠀⠀⠀⠀⠀⠀⣀⣀⣤⣤⣤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                ⠸⡇⠀⠿⡀⠀⠀⠀⣀⡴⢿⣿⣿⣿⣿⣿⣿⣿⣷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠑⢄⣠⠾⠁⣀⣄⡈⠙⣿⣿⣿⣿⣿⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⢀⡀⠁⠀⠀⠈⠙⠛⠂⠈⣿⣿⣿⣿⣿⠿⡿⢿⣆⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⢀⡾⣁⣀⠀⠴⠂⠙⣗⡀⠀⢻⣿⣿⠭⢤⣴⣦⣤⣹⠀⠀⠀⢀⢴⣶⣆
+                ⠀⠀⢀⣾⣿⣿⣿⣷⣮⣽⣾⣿⣥⣴⣿⣿⡿⢂⠔⢚⡿⢿⣿⣦⣴⣾⠁⠸⣼⡿
+                ⠀⢀⡞⠁⠙⠻⠿⠟⠉⠀⠛⢹⣿⣿⣿⣿⣿⣌⢤⣼⣿⣾⣿⡟⠉⠀⠀⠀⠀⠀
+                ⠀⣾⣷⣶⠇⠀⠀⣤⣄⣀⡀⠈⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀
+                ⠀⠉⠈⠉⠀⠀⢦⡈⢻⣿⣿⣿⣶⣶⣶⣶⣤⣽⡹⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⠀⠉⠲⣽⡻⢿⣿⣿⣿⣿⣿⣿⣷⣜⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣷⣶⣮⣭⣽⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⣀⣀⣈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠇⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠻⠿⠿⠿⠿⠛⠉
+                """);
     }
 }
