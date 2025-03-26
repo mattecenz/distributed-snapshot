@@ -19,11 +19,13 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
@@ -364,6 +366,24 @@ public class ConnectionManager {
                 h.sendMessage(tokenMessage);
             }
         }
+    }
+
+    public void startNewSnapshot(){
+        //snapshot preparation
+        String CHARACTERS = Config.SNAPSHOT_CODE_ADMISSIBLE_CHARS;
+        SecureRandom RANDOM = new SecureRandom();
+        String snapshotCode= RANDOM.ints(8, 0, CHARACTERS.length())
+                .mapToObj(CHARACTERS::charAt)
+                .map(String::valueOf)
+                .collect(Collectors.joining());
+
+        TokenMessage tokenMessage = new TokenMessage(snapshotCode, name);
+
+        //start snapshot locally
+        snapshotManager.manageSnapshotToken(snapshotCode,name);
+
+        //notify the rest of the network
+        this.sendBroadcastMsg(tokenMessage);
     }
     // </editor-fold>
 
