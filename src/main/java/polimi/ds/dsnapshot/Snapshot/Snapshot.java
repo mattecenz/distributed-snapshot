@@ -26,7 +26,7 @@ import java.time.format.DateTimeFormatter;
 public class Snapshot {
     private final Object lock = new Object();
 
-    private String snapshotPath = Config.SNAPSHOT_PATH;
+    private String snapshotPath = Config.getString("snapshot.path");
     private final SnapshotState snapshotState;
     //private final Stack<Message> messageInputStack = new Stack<>();
     private final Consumer<CallbackContent> pushMessageReference = this::pushMessage;

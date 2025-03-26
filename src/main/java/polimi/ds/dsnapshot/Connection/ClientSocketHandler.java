@@ -110,7 +110,7 @@ public class ClientSocketHandler implements Runnable{
     public void run() {
         // Set the timeout
         try {
-            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Setting socket timeout... ");
+            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Setting socket timeout... ");
             // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
             // will sleep, else an exception is generated.
             // TODO: wrap in a utils class
@@ -123,7 +123,7 @@ public class ClientSocketHandler implements Runnable{
 
         // Create the object output stream
         try{
-            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Creating the output stream... ");
+            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Creating the output stream... ");
             this.out=new ObjectOutputStream(this.socket.getOutputStream());
         }
         catch (IOException e){
@@ -139,7 +139,7 @@ public class ClientSocketHandler implements Runnable{
 
     public void close() throws IOException {
         socket.close();
-        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Socket closed!");
+        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Socket closed!");
     }
 
     /**
@@ -149,12 +149,12 @@ public class ClientSocketHandler implements Runnable{
 
         //NB: we notice that Config.SNAPSHOT_MUTE is a shared variable, but always accessed as a read, so no problem there.
 
-        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Creating input stream thread... ");
+        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Creating input stream thread... ");
 
         Thread t = new Thread( ()->{
                 // Create the input stream as above
             try{
-                if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Creating input stream...");
+                if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Creating input stream...");
                 this.in=new ObjectInputStream(this.socket.getInputStream());
             }catch (IOException e){
                 // TODO: what to do ?
@@ -167,9 +167,9 @@ public class ClientSocketHandler implements Runnable{
             // Read a generic message and decide what to do
             while(listening.get()){
                 try {
-                    if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Listening... ");
+                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Listening... ");
                     Message m = (Message) this.in.readObject();
-                    if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandlerIN] Message received!");
+                    if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandlerIN] Message received!");
                     // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
@@ -184,7 +184,7 @@ public class ClientSocketHandler implements Runnable{
             }
         );
 
-        if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Launching input stream thread... ");
+        if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Launching input stream thread... ");
 
         t.start();
 
@@ -200,20 +200,20 @@ public class ClientSocketHandler implements Runnable{
      */
     public boolean sendMessage(Message m){
         synchronized (this.outLock) {
-            if(!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Lock acquired...");
+            if(!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Lock acquired...");
             // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
             if (!this.available.get()) {
-                if (!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
+                if (!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Not yet ready to send message! Try again... ");
                 return false;
             }
 
             try {
-                if (!Config.SNAPSHOT_MUTE) System.out.println("[SocketHandler] Sending message...");
+                if (!Config.getBoolean("snapshot.mute")) System.out.println("[SocketHandler] Sending message...");
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
             } catch (IOException e) {
-                if (!Config.SNAPSHOT_MUTE) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
+                if (!Config.getBoolean("snapshot.mute")) System.err.println("[SocketHandler] IO exception: " + e.getMessage());
                 // TODO: what to do ?
                 return false;
             }

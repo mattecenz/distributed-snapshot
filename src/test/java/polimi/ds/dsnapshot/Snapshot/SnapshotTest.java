@@ -17,6 +17,7 @@ import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class SnapshotTest {
-    private static final String snapshotPath = "./snapshots/"; //todo config param
+    private static final String snapshotPath = Config.getString("snapshot.path");
     @Mock
     private ConnectionManager connectionManagerMock;
     @Mock

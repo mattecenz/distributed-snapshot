@@ -24,7 +24,7 @@ public class SnapshotManager {
     //TODO: remove snapshot when ends
     private final ConnectionManager connectionManager;
 
-    private static final String snapshotPath = Config.SNAPSHOT_PATH;
+    private static final String snapshotPath = Config.getString("snapshot.path");
 
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
@@ -75,7 +75,7 @@ public class SnapshotManager {
         return state;
     }
     private File getLastSnapshotFile(){
-        File snapshotsDir = new File("./snapshots");
+        File snapshotsDir = new File(snapshotPath);
 
         // List all files in the directory that match the pattern
         File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
