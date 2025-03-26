@@ -83,8 +83,13 @@ public class Main {
                         sendMessage();
                     }
                     case "exit" -> {
-                        // TODO
-                        SystemOutTS.println("Stay tuned, this will be implemented in the next version :)");
+                        // TODO is this correct ?
+                        try {
+                            JavaDistributedSnapshot.getInstance().leaveNetwork();
+                        } catch (JavaDSException e) {
+                            System.err.println("The library threw a JavaDSException: " + e.getMessage());
+                        }
+                        break;
                     }
                     case "snapshot" ->{
                         // TODO
