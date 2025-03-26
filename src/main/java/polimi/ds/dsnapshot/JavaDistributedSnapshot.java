@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -33,6 +34,9 @@ public class JavaDistributedSnapshot{
 
     //todo find better name
     public void startSocketConnection(int hostPort) {
+        //start log
+        LoggerManager.start(hostPort);
+
         connectionManager = new ConnectionManager(hostPort);
         connectionManager.start();
     }

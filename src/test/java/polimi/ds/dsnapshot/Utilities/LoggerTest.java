@@ -8,8 +8,10 @@ public class LoggerTest {
 
     @Test
     public void testLogger() {
-        LoggerManager.getInstance().mutableInfo("test logger", Optional.empty(),Optional.empty());
+        LoggerManager.start(104);
 
-        LoggerManager.getInstance().mutableInfo("test logger1", Optional.of(this.getClass().getName()), Optional.of("test"));
+        LoggerManager.getInstance().mutableInfo("test logger1", Optional.empty(),Optional.empty());
+
+        LoggerManager.getInstance().mutableInfo("test logger2", Optional.of(this.getClass().getName()), Optional.of("test"));
     }
 }

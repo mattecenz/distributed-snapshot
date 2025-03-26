@@ -8,22 +8,29 @@ import java.util.Optional;
 import java.util.logging.*;
 
 public class LoggerManager {
+    private static boolean started = false;
     private static LoggerManager instance;
 
     private static Boolean mute = Config.getBoolean("snapshot.mute");
     private static String logPath =Config.getString("logger.path");
 
-    private static final Logger logger = Logger.getLogger(Config.getString("logger.loggerName"));
+    private static Logger logger;
 
     private LoggerManager() {}
+
+    public static void start(int port) {
+        logger = Logger.getLogger(Config.getString("logger.loggerName")+ port);
+
+        createDirectory();
+        saveOldLog(port);
+        init(port);
+
+        started = true;
+    }
 
     public synchronized static LoggerManager getInstance() {
         if (instance == null) {
             instance = new LoggerManager();
-
-            createDirectory();
-            saveOldLog();
-            init();
         }
         return instance;
     }
@@ -39,8 +46,8 @@ public class LoggerManager {
         }
     }
 
-    private static void saveOldLog(){
-        String logFileName = Config.getString("logger.loggerName") + ".log";
+    private static void saveOldLog(int port){
+        String logFileName = Config.getString("logger.loggerName")+ port + ".log";
         File logFile = new File(logPath, logFileName);
         File oldLogFile = new File(logPath, Config.getString("logger.loggerName")+".old.log");
 
@@ -54,12 +61,12 @@ public class LoggerManager {
         }
     }
 
-    private static void init(){
+    private static void init(int port){
         FileHandler fh;
         logger.setLevel(Level.ALL);
         try {
             // This block configure the logger with handler and formatter
-            fh = new FileHandler(logPath+"/"+Config.getString("logger.loggerName")+".log");
+            fh = new FileHandler(logPath+"/"+Config.getString("logger.loggerName")+ port +".log");
             logger.addHandler(fh);
             SimpleFormatter formatter = new SimpleFormatter();
             fh.setFormatter(formatter);
@@ -73,11 +80,12 @@ public class LoggerManager {
     }
 
     public Logger getLogger() {
+        if(!started)return null;
         return logger;
     }
 
     public void mutableInfo(String msg, Optional<String> className, Optional<String> methodName) {
-        if(!mute){
+        if(!mute && started){
             String resolvedClass =  className.orElse(this.getClass().getName());
             String resolvedMethod = methodName.orElse("mutableInfo");
 
