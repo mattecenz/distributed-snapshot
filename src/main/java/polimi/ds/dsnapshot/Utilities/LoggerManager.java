@@ -2,6 +2,8 @@ package polimi.ds.dsnapshot.Utilities;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.logging.*;
 
@@ -20,6 +22,7 @@ public class LoggerManager {
             instance = new LoggerManager();
 
             createDirectory();
+            saveOldLog();
             init();
         }
         return instance;
@@ -31,6 +34,21 @@ public class LoggerManager {
             boolean created = directory.mkdirs();
             if(!created){
                 System.err.println("Failed to create directory " + logPath);
+                //todo: decide
+            }
+        }
+    }
+
+    private static void saveOldLog(){
+        String logFileName = Config.getString("logger.loggerName") + ".log";
+        File logFile = new File(logPath, logFileName);
+        File oldLogFile = new File(logPath, Config.getString("logger.loggerName")+".old.log");
+
+        if (logFile.exists()) {
+            try {
+                Files.move(logFile.toPath(), oldLogFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                System.err.println("Failed to rename log file: " + e.getMessage());
                 //todo: decide
             }
         }
@@ -63,10 +81,7 @@ public class LoggerManager {
             String resolvedClass =  className.orElse(this.getClass().getName());
             String resolvedMethod = methodName.orElse("mutableInfo");
 
-            LogRecord record = new LogRecord(Level.INFO, msg);
-            record.setSourceClassName(resolvedClass);
-            record.setSourceMethodName(resolvedMethod);
-            logger.log(record);
+            logger.logp(Level.INFO ,resolvedClass,resolvedMethod,msg);
         }
     }
 
