@@ -20,7 +20,6 @@ public class JavaDistributedSnapshot{
     private static ConnectionManager connectionManager;
     private static ApplicationLayerInterface applicationLayerInterface;
 
-    //todo find better name
 
     private JavaDistributedSnapshot() {}
 
@@ -32,6 +31,7 @@ public class JavaDistributedSnapshot{
         return instance;
     }
 
+    //todo find better name
     public void startSocketConnection(int hostPort) {
         connectionManager = new ConnectionManager(hostPort);
         connectionManager.start();

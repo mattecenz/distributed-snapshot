@@ -16,6 +16,10 @@ public class DefaultConfigParameters {
         DEFAULTS.put("network.PingPongTimeout", 5000);
         DEFAULTS.put("network.directConnectionProbability", 0.7);
         DEFAULTS.put("network.ackTimeout", 5000);
+
+        DEFAULTS.put("logger.loggerName", "DistributedSnapshotLog");
+        DEFAULTS.put("logger.path", "./logOutput/");
+        DEFAULTS.put("logger.showLogInSOut", false);
     }
 
     public static Object get(String key) {
