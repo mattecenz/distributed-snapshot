@@ -9,10 +9,11 @@ import java.io.Serializable;
 
 public class AppUtility implements ApplicationLayerInterface {
 
-    // TODO: serialize the state
+    // TODO: this is not an atomic operation, so be careful
+    // TODO: can this warning cause issues ?
     @Override
-    public byte[] getApplicationState() {
-        return new byte[0];
+    public AppState getApplicationState() {
+        return Main.getAppState();
     }
 
     @Override
