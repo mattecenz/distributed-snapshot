@@ -11,7 +11,7 @@ public class LoggerManager {
     private static boolean started = false;
     private static LoggerManager instance;
 
-    private static Boolean mute = Config.getBoolean("snapshot.mute");
+    private static Boolean mute = Config.getBoolean("logger.mute");
     private static String logPath =Config.getString("logger.path");
 
     private static Logger logger;

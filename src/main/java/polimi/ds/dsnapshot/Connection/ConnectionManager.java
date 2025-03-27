@@ -113,7 +113,7 @@ public class ConnectionManager {
                 // TODO: what to do ?
             }
             // Here the serverSocket is closed
-            if(!Config.getBoolean("snapshot.mute")) System.out.println("[ConnectionManager] Shutting down...");
+            LoggerManager.getInstance().mutableInfo("Shutting down...", Optional.of(this.getClass().getName()), Optional.of("start"));
         });
 
         LoggerManager.getInstance().mutableInfo("Launching the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
@@ -175,9 +175,7 @@ public class ConnectionManager {
 
         // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
-        if(!Config.getBoolean("snapshot.mute")){
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
-        }
+        LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
         throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
     }
 

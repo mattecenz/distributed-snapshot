@@ -1,6 +1,5 @@
 snapshot:
   path: "./snapshots/"
-  mute: false
   codeAdmissibleChars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   uniqueCodeSize: 8
 
@@ -10,6 +9,7 @@ network:
   ackTimeout: 5000
 
 logger:
+  mute: false
   showLogInSOut: true
 
 

@@ -9,7 +9,6 @@ public class DefaultConfigParameters {
 
     static {
         DEFAULTS.put("snapshot.path", "./snapshots/");
-        DEFAULTS.put("snapshot.mute", true);
         DEFAULTS.put("snapshot.codeAdmissibleChars", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
         DEFAULTS.put("snapshot.uniqueCodeSize", 8);
 
@@ -20,6 +19,7 @@ public class DefaultConfigParameters {
         DEFAULTS.put("logger.loggerName", "DistributedSnapshotLog");
         DEFAULTS.put("logger.path", "./logOutput/");
         DEFAULTS.put("logger.showLogInSOut", false);
+        DEFAULTS.put("logger.mute", true);
     }
 
     public static Object get(String key) {
