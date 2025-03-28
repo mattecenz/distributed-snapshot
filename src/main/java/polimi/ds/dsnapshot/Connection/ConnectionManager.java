@@ -440,7 +440,7 @@ public class ConnectionManager {
         // TODO: case in which no children
         for(ClientSocketHandler h : this.spt.get().getChildren()){
             ok = h.sendMessage(msg) || ok;
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not present in routing table", e);
+            LoggerManager.getInstance().mutableInfo( "Sending message to all children", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
         }
 
         return ok;
@@ -564,7 +564,7 @@ public class ConnectionManager {
                 try {
                     this.routingTable.get().addPath(msgd.getOriginName(), handler);
                 } catch (RoutingTableNodeAlreadyPresentException e) {
-                    if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Node already present, do nothing...");
+                    LoggerManager.getInstance().mutableInfo( "Node already present. Do nothing", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
                     // I guess just do not do anything
                 }
 
@@ -584,7 +584,7 @@ public class ConnectionManager {
                         nextHandler.sendMessage(msgd);
                     }
                     catch(RoutingTableNodeNotPresentException e){
-                        if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Node not present, forwarding...");
+                        LoggerManager.getInstance().mutableInfo( "Node not present, forwarding", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
 
                         // Forward to all the handlers in the spt except the one you received it from
                         this.forwardMessageAlongSPT(msgd, handler);
@@ -598,7 +598,7 @@ public class ConnectionManager {
                 try {
                     this.routingTable.get().addPath(msgdr.getOriginName(),handler);
                 } catch (RoutingTableNodeAlreadyPresentException e) {
-                    if(!Config.SNAPSHOT_MUTE) System.out.println("[ConnectionManager] Node already present, do nothing...");
+                    LoggerManager.getInstance().mutableInfo( "Node already present, do nothing.", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
                 }
 
                 // If I am the destination of the reply then notify my thread
