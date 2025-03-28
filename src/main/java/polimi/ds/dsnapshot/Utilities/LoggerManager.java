@@ -18,7 +18,7 @@ public class LoggerManager {
 
     private LoggerManager() {}
 
-    public static void start(int port) {
+    public synchronized static void start(int port) {
         logger = Logger.getLogger(Config.getString("logger.loggerName")+ port);
 
         createDirectory();
@@ -79,7 +79,7 @@ public class LoggerManager {
         }
     }
 
-    public Logger getLogger() {
+    public synchronized Logger getLogger() {
         if(!started)return null;
         return logger;
     }
@@ -88,7 +88,7 @@ public class LoggerManager {
         return getInstance().getLogger();
     }
 
-    public void mutableInfo(String msg, Optional<String> className, Optional<String> methodName) {
+    public synchronized  void mutableInfo(String msg, Optional<String> className, Optional<String> methodName) {
         if(!mute && started){
             String resolvedClass =  className.orElse(this.getClass().getName());
             String resolvedMethod = methodName.orElse("mutableInfo");
