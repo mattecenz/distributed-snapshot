@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageAck;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.util.Calendar;
 import java.util.function.Consumer;
@@ -19,6 +20,8 @@ public class EventTest {
 
     @BeforeEach
     void setUp() {
+        LoggerManager.start(104);
+
         m1 = null;
         m2 = null;
 

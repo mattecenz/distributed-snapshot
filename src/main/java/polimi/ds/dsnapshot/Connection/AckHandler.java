@@ -1,10 +1,13 @@
 package polimi.ds.dsnapshot.Connection;
 
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
 
 public class AckHandler{
     /**
@@ -37,6 +40,7 @@ public class AckHandler{
         Thread toNotify = this.acksPending.remove(ack);
         // this should never happen
         if(toNotify == null){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "No thread found in the ack map for ack " + ack);
             throw new RuntimeException("[ConnectionManager] No thread found in the ack map for ack " + ack);
         }
         toNotify.interrupt();

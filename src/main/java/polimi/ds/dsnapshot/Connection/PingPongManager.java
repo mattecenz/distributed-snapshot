@@ -3,7 +3,11 @@ package polimi.ds.dsnapshot.Connection;
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
 import polimi.ds.dsnapshot.Exception.ConnectionException;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
+
+import java.util.Optional;
+import java.util.logging.Level;
 
 
 public class PingPongManager {
@@ -13,6 +17,7 @@ public class PingPongManager {
 
 
     protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler) {
+        LoggerManager.getInstance().mutableInfo("start ping pong with: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("PingPongManager"));
         manager = connectionManager;
         this.handler = handler;
         //send first ping
@@ -29,13 +34,12 @@ public class PingPongManager {
     private void sendPing(){
         try {
             while (true) {
-                if(!Config.getBoolean("snapshot.mute")) System.out.println("[PingPongManager] send ping");
                 Thread.sleep(pingPongTimeout);
                 manager.sendMessageSynchronized(new PingPongMessage(true), handler);
             }
         } catch (InterruptedException e) {
             //todo: manage exception
-            System.out.println("[PingPongManager] error while waiting for pong " + e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "[PingPongManager] error while waiting for pong ", e);
         } catch (ConnectionException e){
             pingFail();
             return;
@@ -43,7 +47,7 @@ public class PingPongManager {
     }
 
     private void pingFail(){
-        System.out.println("[PingPongManager] Ping failed!");
+        LoggerManager.instanceGetLogger().warning("unanswered ping message with" + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort());
         //todo: React to ping pong fail
     }
 

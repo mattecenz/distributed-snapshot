@@ -2,11 +2,13 @@ package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.Serializable;
 import java.util.Dictionary;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Optional;
 
 /**
  * Internal routing table of the connection manager.
@@ -35,6 +37,7 @@ public class RoutingTable implements Serializable {
      * Default constructor with no entries in the table.
      */
     public RoutingTable(){
+        LoggerManager.getInstance().mutableInfo("create new RoutingTable", Optional.of(this.getClass().getName()), Optional.of("RoutingTable"));
         this.routingTableFields = new Hashtable<>();
     }
 
@@ -42,6 +45,7 @@ public class RoutingTable implements Serializable {
      * Method to explicitly cleear each entry of the routing table.
      */
     protected void clearTable(){
+        LoggerManager.getInstance().mutableInfo("empty routing table completely", Optional.of(this.getClass().getName()), Optional.of("clearTable"));
         Enumeration<NodeName> keys = this.routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
@@ -65,6 +69,7 @@ public class RoutingTable implements Serializable {
      */
     protected void addPath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeAlreadyPresentException {
         if (this.routingTableFields.get(destination) != null) throw new RoutingTableNodeAlreadyPresentException();
+        LoggerManager.getInstance().mutableInfo("add new path to the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("addPath"));
 
         this.routingTableFields.put(destination,nextHopConnection);
     }
@@ -72,7 +77,7 @@ public class RoutingTable implements Serializable {
     /**
      * Utility method for printing the internal routing table
      */
-    protected void printRoutingTable() {
+    protected void printRoutingTable() { //TODO: use log
         System.out.println("Routing Table:");
         var keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
@@ -89,6 +94,7 @@ public class RoutingTable implements Serializable {
      */
     protected void updatePath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination)==null) throw new RoutingTableNodeNotPresentException();
+        LoggerManager.getInstance().mutableInfo("update existing path in the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("updatePath"));
 
         this.routingTableFields.put(destination, nextHopConnection);
     }
@@ -100,6 +106,7 @@ public class RoutingTable implements Serializable {
      */
     protected void removePath(NodeName destination) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination) == null) throw new RoutingTableNodeNotPresentException();
+        LoggerManager.getInstance().mutableInfo("remove existing path from the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("removePath"));
 
         this.routingTableFields.remove(destination);
     }
@@ -125,9 +132,13 @@ public class RoutingTable implements Serializable {
      * @throws RoutingTableNodeNotPresentException if the node was not found in the routing table
      */
     ClientSocketHandler getNextHop(NodeName destination) throws RoutingTableNodeNotPresentException {
+        LoggerManager.getInstance().mutableInfo("requested next hop for:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
         ClientSocketHandler nextHop = this.routingTableFields.get(destination);
 
-        if(nextHop == null) throw new RoutingTableNodeNotPresentException();
+        if(nextHop == null){
+            LoggerManager.getInstance().mutableInfo("next hop is null", Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
+            throw new RoutingTableNodeNotPresentException();
+        }
         return nextHop;
     }
 }

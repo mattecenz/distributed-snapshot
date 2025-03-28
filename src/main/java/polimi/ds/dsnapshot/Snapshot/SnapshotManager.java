@@ -5,6 +5,7 @@ import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.io.File;
 import java.io.*;
 import java.util.*;
+import java.util.logging.Level;
 
 public class SnapshotManager {
     private Dictionary<String, Snapshot> snapshots = new Hashtable<>();
@@ -32,8 +34,10 @@ public class SnapshotManager {
         if (!directory.exists()){
         boolean created = directory.mkdirs();
             if(!created){
-                System.err.println("Failed to create directory " + snapshotPath);
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to create directory " + snapshotPath);
                 //todo: decide
+            }else{
+                LoggerManager.getInstance().mutableInfo("created directory" + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("SnapshotManager"));
             }
         }
     }
@@ -44,23 +48,28 @@ public class SnapshotManager {
             startNewSnapshot(snapshotCode, channelName);
             return true;
         }
+        LoggerManager.getInstance().mutableInfo("received token for already existing snapshot: " + snapshotCode + " from " + channelName.getIP() + ":" + channelName.getPort(), Optional.of(this.getClass().getName()), Optional.of("manageSnapshotToken"));
 
         //receive a token for an existing snapshot => stop listening channel
         try {
             snapshot.notifyNewToken(channelName.getIP()+":"+channelName.getPort());
         } catch (EventException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE,"received snapshot token from a node not registered in the events as direct connection", e);
             //todo decide
         }
         return false;
     }
 
     private void startNewSnapshot(String snapshotCode, NodeName channelName){
+        LoggerManager.getInstance().mutableInfo("Starting new snapshot for " + snapshotCode + " from " + channelName.getIP() + ":" + channelName.getPort(), Optional.of(this.getClass().getName()), Optional.of("startNewSnapshot"));
+
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
         eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
             Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager);
             snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to start snapshot " + snapshotCode, e);
             System.err.println(e.getMessage());
             //todo decide
         }
@@ -68,6 +77,9 @@ public class SnapshotManager {
 
     public SnapshotState getLastSnapshot() {
         File file = getLastSnapshotFile();
+        if(file!=null)LoggerManager.getInstance().mutableInfo("getLastSnapshot: "+ file.getName(), Optional.of(this.getClass().getName()), Optional.of("getLastSnapshot"));
+        else LoggerManager.getInstance().mutableInfo("didn't find a snapshot file", Optional.of(this.getClass().getName()), Optional.of("getLastSnapshot"));
+
         SnapshotState state = null;
         if(file != null){
             state = parseSnapshotFile(file);
@@ -81,7 +93,6 @@ public class SnapshotManager {
         File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
 
         if (files == null || files.length == 0) {
-            System.err.println("No snapshots found");
             return null; // No files found
         }
 
@@ -100,7 +111,7 @@ public class SnapshotManager {
              lastSnapshot = (SnapshotState) ois.readObject();
         }catch (Exception e){
             //TODO decide
-            System.err.println("execption: " + e);
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to parse snapshot file: " + file.getName(), e);
             return null;
         }
         return lastSnapshot;

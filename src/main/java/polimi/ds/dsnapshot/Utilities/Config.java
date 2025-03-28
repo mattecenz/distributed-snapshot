@@ -14,10 +14,10 @@ public class Config {
                 Yaml yaml = new Yaml();
                 tempConfig = yaml.load(input);
             }else {
-                System.out.println("no config.yaml found, using default config parameters");
+                LoggerManager.instanceGetLogger().warning("no config.yaml found, using default config parameters");
             }
         } catch (Exception e) {
-            System.out.println("no config.yaml found, using default config parameters");
+            LoggerManager.instanceGetLogger().warning("no config.yaml found, using default config parameters");
         }
         config = (tempConfig != null) ? tempConfig : Map.of();
     }

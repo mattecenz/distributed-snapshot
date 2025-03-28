@@ -1,5 +1,6 @@
 package polimi.ds.dsnapshot.Utilities;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -7,6 +8,12 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 public class SerializeTest {
+
+    @BeforeEach
+    public void setup() {
+        LoggerManager.start(104);
+    }
+
     @Test
     public void serializationTest() throws IOException {
         ExampleMessage message = new ExampleMessage("frigieri, frigioggi, frigdomani");

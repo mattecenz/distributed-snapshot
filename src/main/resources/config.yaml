@@ -1,6 +1,5 @@
 snapshot:
   path: "./snapshots/"
-  mute: true
   codeAdmissibleChars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   uniqueCodeSize: 8
 
@@ -8,6 +7,10 @@ network:
   PingPongTimeout: 5000
   directConnectionProbability: 0.7
   ackTimeout: 5000
+
+logger:
+  mute: false
+  showLogInSOut: true
 
 
 # all the parameters and the file itself are optional

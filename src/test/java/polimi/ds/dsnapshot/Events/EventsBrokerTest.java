@@ -3,6 +3,7 @@ package polimi.ds.dsnapshot.Events;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
@@ -10,6 +11,7 @@ public class EventsBrokerTest {
 
     @BeforeEach
     public void setup() {
+        LoggerManager.start(104);
         EventsBroker.removeAllEventsChannel();
     }
 

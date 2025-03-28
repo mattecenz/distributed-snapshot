@@ -11,6 +11,7 @@ import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
+import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.time.format.DateTimeFormatter;
+import java.util.logging.Level;
 
 public class Snapshot {
     private final Object lock = new Object();
@@ -87,7 +89,7 @@ public class Snapshot {
                 oos.writeObject(snapshotState);
             }
         } catch (Exception e) {
-            System.err.println(e.getMessage());
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "failed to serialize snapshot file: " + snapshotPath, e);
             //todo decide
         }
     }
