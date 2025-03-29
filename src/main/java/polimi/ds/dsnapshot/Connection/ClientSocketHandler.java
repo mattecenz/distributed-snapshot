@@ -170,7 +170,7 @@ public class ClientSocketHandler implements Runnable{
                 try {
                     LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                     Message m = (Message) this.in.readObject();
-                    LoggerManager.getInstance().mutableInfo("Message received!", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
+                    LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                     // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
@@ -209,7 +209,7 @@ public class ClientSocketHandler implements Runnable{
             }
 
             try {
-                LoggerManager.getInstance().mutableInfo("Sending message...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
+                LoggerManager.getInstance().mutableInfo("Sending message: " + m.getClass().getName(), Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
@@ -231,8 +231,8 @@ public class ClientSocketHandler implements Runnable{
         return this.remoteNodeName;
     }
 
-    protected void startPingPong(){
-        pingPongManager = new PingPongManager(manager,this);
+    protected void startPingPong(boolean isFirstPing){
+        pingPongManager = new PingPongManager(manager,this, isFirstPing);
     }
 
 

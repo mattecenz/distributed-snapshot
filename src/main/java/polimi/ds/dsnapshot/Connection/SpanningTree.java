@@ -35,7 +35,7 @@ public class SpanningTree {
     }
 
     protected void addChild(ClientSocketHandler newChild) throws SpanningTreeException {
-        LoggerManager.getInstance().mutableInfo("add child to spanning tree: " + newChild.getRemoteNodeName().getIP()+":"+newChild.getRemoteNodeName().getIP(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
+        LoggerManager.getInstance().mutableInfo("add child to spanning tree: " + newChild.getRemoteNodeName().getIP()+":"+newChild.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (children.contains(newChild)) throw new SpanningTreeException("el already in the SPT");
         if (newChild.equals(anchorNodeHandler)) throw new SpanningTreeException("this is not Alabama");
         children.add(newChild);

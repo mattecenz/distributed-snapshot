@@ -227,7 +227,7 @@ public class ConnectionManager {
             return;
         }
         this.spt.get().setAnchorNodeHandler(handler);
-        handler.startPingPong();
+        handler.startPingPong(true);
     }
 
     /**
@@ -549,7 +549,7 @@ public class ConnectionManager {
                         // todo: decide
                         LoggerManager.instanceGetLogger().log(Level.SEVERE, "Spanning tree exception", e);
                     }
-                    handler.startPingPong();
+                    handler.startPingPong(false); //the client who send U the ping as U as father
                 }
             }
             case MESSAGE_APP -> {

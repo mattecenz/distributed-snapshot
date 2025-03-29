@@ -16,13 +16,13 @@ public class PingPongManager {
     private final int pingPongTimeout = Config.getInt("network.PingPongTimeout");
 
 
-    protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler) {
+    protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean isFirstPing) {
         LoggerManager.getInstance().mutableInfo("start ping pong with: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("PingPongManager"));
         manager = connectionManager;
         this.handler = handler;
         //send first ping
         try {
-            manager.sendMessageSynchronized(new PingPongMessage(true),handler);
+            manager.sendMessageSynchronized(new PingPongMessage(isFirstPing),handler);
         } catch (ConnectionException e) {
             pingFail();
             return;
