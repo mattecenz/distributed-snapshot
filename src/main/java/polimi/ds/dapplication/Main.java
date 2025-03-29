@@ -121,11 +121,11 @@ public class Main {
 
     private static void joinNetwork(){
 
-        SystemOutTS.print("Enter ip address: ");
+        SystemOutTS.print("Enter network entry point ip address: ");
         String ip = retryInput(regexIp);
 
         // Avoid error checking on the port for the moment
-        SystemOutTS.print("Enter port: ");
+        SystemOutTS.print("Enter network entry port: ");
         int port = scanner.nextInt();
 
         try {
