@@ -46,8 +46,8 @@ public class ConnectionManager {
      * Routing table of the application.
      * It is an atomic reference since all the operations in it must be run atomically to avoid inconsistencies
      */
-    private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>();
-    private final AtomicReference<SpanningTree> spt = new AtomicReference<>();
+    private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>(new RoutingTable());
+    private final AtomicReference<SpanningTree> spt = new AtomicReference<>(new SpanningTree());
     private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
     /**
      * Reference to the handler of the acks

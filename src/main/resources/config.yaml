@@ -10,7 +10,7 @@ network:
 
 logger:
   mute: false
-  showLogInSOut: true
+  showLogInSOut: false
 
 
 # all the parameters and the file itself are optional

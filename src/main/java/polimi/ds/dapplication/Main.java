@@ -33,7 +33,7 @@ public class Main {
     /**
      * Regex for yes/no answers
      */
-    private final static String regexYN = "y|Y|n|N";
+    private final static String regexYN = "y|Y|n|N|";
 
     /**
      * Retry the input until the regex is not matched
@@ -120,13 +120,20 @@ public class Main {
     }
 
     private static void joinNetwork(){
+        SystemOutTS.print("Enter port of the client you want to join: ");
+        int nPort = scanner.nextInt();
+        scanner.nextLine();
+
+        // TODO: is it good ?
+        JavaDistributedSnapshot.getInstance().startSocketConnection(nPort);
 
         SystemOutTS.print("Enter network entry point ip address: ");
         String ip = retryInput(regexIp);
 
         // Avoid error checking on the port for the moment
-        SystemOutTS.print("Enter network entry port: ");
+        SystemOutTS.print("Enter network entry point port: ");
         int port = scanner.nextInt();
+        scanner.nextLine();
 
         try {
             JavaDistributedSnapshot.getInstance().joinNetwork(appUtility, ip, port);
@@ -158,7 +165,7 @@ public class Main {
         SystemOutTS.println("Hello, World!");
 
         // Ask the client if he wants to join a network or not
-        SystemOutTS.print("Do you want to create a new network? [y/n] ");
+        SystemOutTS.print("Do you want to create a new network? [y/N] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){
