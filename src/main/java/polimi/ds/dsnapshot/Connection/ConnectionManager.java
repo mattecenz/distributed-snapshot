@@ -398,7 +398,7 @@ public class ConnectionManager {
         boolean ok = true;
 
         // I can just check the references for simplicity
-        if(receivedHandler!=this.spt.get().getAnchorNodeHandler()){
+        if(receivedHandler!=this.spt.get().getAnchorNodeHandler() && this.spt.get().getAnchorNodeHandler()!=null){
             ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
         }
 

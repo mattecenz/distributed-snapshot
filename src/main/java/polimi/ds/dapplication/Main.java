@@ -55,6 +55,7 @@ public class Main {
 
         SystemOutTS.print("Enter port of the receiver of the message: ");
         int port = scanner.nextInt();
+        scanner.nextLine();
 
         SystemOutTS.print("Enter text message to send: ");
         String message = scanner.nextLine();
