@@ -5,7 +5,6 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
-import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.IOException;
@@ -18,12 +17,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public class ClientSocketHandler implements Runnable{
-
     /**
      * Socket which represents the connection
      */
     private final Socket socket;
-
     /**
      * Output stream
      */
@@ -42,7 +39,8 @@ public class ClientSocketHandler implements Runnable{
      */
      private PingPongManager pingPongManager;
     /**
-     * Name of the remote client associated to this socket
+     * Name of the remote client associated to this socket.
+     * Careful, since it is not final it may happen that there is a period that the client remains with no name
      */
     private final NodeName remoteNodeName;
     /**
@@ -51,14 +49,14 @@ public class ClientSocketHandler implements Runnable{
     private final ConnectionManager manager;
 
     /**
-     * Boolean to check  if the socket handler is ready
+     * Boolean to check  if the socket output handler is ready
      */
-    private final AtomicBoolean available;
+    private final AtomicBoolean outAvailable;
 
     /**
      * Shared variable used for checking if the server is still listening or not
      */
-    private final AtomicBoolean listening;
+    private final AtomicBoolean inAvailable;
 
     /**
      * Lock used for output (send) operations
@@ -68,15 +66,41 @@ public class ClientSocketHandler implements Runnable{
     /**
      * Constructor of the handler
      * @param socket socket to be managed
+     * @param remoteNodeName name of the remote node
      * @param manager reference to the connection manager
      */
-    public ClientSocketHandler(Socket socket, ConnectionManager manager) {
+    public ClientSocketHandler(Socket socket, NodeName remoteNodeName, ConnectionManager manager) {
         this.socket = socket;
-        this.remoteNodeName = new NodeName(this.socket.getInetAddress().getHostAddress(), this.socket.getPort());
-        this.available = new AtomicBoolean(false);
-        this.listening = new AtomicBoolean(false);
+        this.remoteNodeName = remoteNodeName;
+        this.outAvailable = new AtomicBoolean(false);
+        this.inAvailable = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
+
+        this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
+
+        LoggerManager.getInstance().mutableInfo("Socket connected at address:" + socket.getInetAddress() + ":" + socket.getPort(), Optional.of(this.getClass().getName()), Optional.of("ClientSocketHandler"));
+    }
+
+    /**
+     * Constructor of the handler form a previous unnamed socket handler
+     * @param unhandler UnNamedSocketHandler constructed before
+     * @param remoteNodeName name of the remote node
+     * @param manager reference to the connection manager
+     */
+    public ClientSocketHandler(UnNamedSocketHandler unhandler, NodeName remoteNodeName, ConnectionManager manager){
+        this.socket = unhandler.getSocket();
+        this.remoteNodeName = remoteNodeName;
+        this.outAvailable = new AtomicBoolean(false);
+        // The input stream is retrieved from the socket handler before
+        this.inAvailable = new AtomicBoolean(true);
+        this.manager = manager;
+
+        this.outLock = new Object();
+
+        // This is the fundamental difference
+        this.in = unhandler.getIn();
+
         this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
         LoggerManager.getInstance().mutableInfo("Socket connected at address:" + socket.getInetAddress() + ":" + socket.getPort(), Optional.of(this.getClass().getName()), Optional.of("ClientSocketHandler"));
@@ -86,9 +110,10 @@ public class ClientSocketHandler implements Runnable{
      * Constructor of the handler without the connection manager.
      * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
      * @param socket socket to be managed
+     * @param remoteNodeName name of the remote node
      */
-    public ClientSocketHandler(Socket socket) {
-        this(socket, null);
+    public ClientSocketHandler(Socket socket, NodeName remoteNodeName) {
+        this(socket, remoteNodeName, null);
     }
 
 
@@ -128,6 +153,8 @@ public class ClientSocketHandler implements Runnable{
         try{
             LoggerManager.getInstance().mutableInfo("Creating the output stream...", Optional.of(this.getClass().getName()), Optional.of("run"));
             this.out=new ObjectOutputStream(this.socket.getOutputStream());
+
+            this.outAvailable.set(true);
         }
         catch (IOException e){
             //TODO: what to do ?
@@ -142,6 +169,8 @@ public class ClientSocketHandler implements Runnable{
     public void close() throws IOException {
         socket.close();
         LoggerManager.getInstance().mutableInfo("Socket closed!", Optional.of(this.getClass().getName()), Optional.of("close"));
+        this.outAvailable.set(false);
+        this.inAvailable.set(false);
     }
 
     /**
@@ -154,19 +183,20 @@ public class ClientSocketHandler implements Runnable{
 
         Thread t = new Thread( ()->{
                 // Create the input stream as above
-            try{
-                LoggerManager.getInstance().mutableInfo("Creating input stream..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
-                this.in=new ObjectInputStream(this.socket.getInputStream());
-            }catch (IOException e){
-                // TODO: what to do ?
-                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+            if(!this.inAvailable.get()) {
+                try {
+                    LoggerManager.getInstance().mutableInfo("Creating input stream..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
+                    this.in = new ObjectInputStream(this.socket.getInputStream());
+                } catch (IOException e) {
+                    // TODO: what to do ?
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+                }
+                // Now we are ready to listen incoming messages
+                this.inAvailable.set(true);
             }
 
-            // Now we are ready to listen
-            this.listening.set(true);
-
             // Read a generic message and decide what to do
-            while(listening.get()){
+            while(inAvailable.get()){
                 try {
                     LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
                     Message m = (Message) this.in.readObject();
@@ -189,8 +219,6 @@ public class ClientSocketHandler implements Runnable{
 
         t.start();
 
-        this.available.set(true);
-
         // This function is done
     }
 
@@ -203,7 +231,7 @@ public class ClientSocketHandler implements Runnable{
         synchronized (this.outLock) {
             LoggerManager.getInstance().mutableInfo("Lock acquired...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
             // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
-            if (!this.available.get()) {
+            if (!this.outAvailable.get()) {
                 LoggerManager.getInstance().mutableInfo("Not yet ready to send message! Try again...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 return false;
             }
@@ -225,7 +253,7 @@ public class ClientSocketHandler implements Runnable{
 
     /**
      * Get the name of the remote socket
-     * @ return the name of the remote socket
+     * @return the name of the remote socket
      */
     public NodeName getRemoteNodeName(){
         return this.remoteNodeName;

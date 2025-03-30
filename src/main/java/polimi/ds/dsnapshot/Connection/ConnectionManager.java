@@ -6,10 +6,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
-import polimi.ds.dsnapshot.Exception.ConnectionException;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
-import polimi.ds.dsnapshot.Exception.SpanningTreeException;
+import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -39,7 +36,11 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 public class ConnectionManager {
 
     /**
-     * List of active connections
+     * List of active connections which do not have yet a name
+     */
+    private final List<UnNamedSocketHandler> unNamedHandlerList;
+    /**
+     * List of all the active connections in the network
      */
     private final List<ClientSocketHandler> handlerList;
     /**
@@ -65,6 +66,7 @@ public class ConnectionManager {
      * Constructor of the connection manager
      */
     public ConnectionManager(int port){
+        this.unNamedHandlerList = new ArrayList<>();
         this.handlerList = new ArrayList<>();
         this.ackHandler = new AckHandler();
 
@@ -92,16 +94,16 @@ public class ConnectionManager {
 
             try(ServerSocket serverSocket = new ServerSocket(this.name.getPort())){
                 LoggerManager.getInstance().mutableInfo("Created listening socket on port "+this.name.getPort()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
-                LoggerManager.getInstance().mutableInfo("Created thread pool...", Optional.of(this.getClass().getName()), Optional.of("start"));
-
 
                 while(true){
                     LoggerManager.getInstance().mutableInfo("Waiting for connection...", Optional.of(this.getClass().getName()), Optional.of("start"));
                     Socket socket = serverSocket.accept();
                     LoggerManager.getInstance().mutableInfo("Accepted connection from " + socket.getRemoteSocketAddress()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
-                    ClientSocketHandler handler = new ClientSocketHandler(socket, this);
-                    this.handlerList.add(handler);
-                    ThreadPool.submit(handler);
+                    // When you receive a new connection add it to the list of unnamed connections
+                    UnNamedSocketHandler unhandler = new UnNamedSocketHandler(socket, this);
+                    this.unNamedHandlerList.add(unhandler);
+                    // Submit the thread which will wait for the join message
+                    ThreadPool.submit(unhandler);
                     LoggerManager.getInstance().mutableInfo("Connection submitted to executor...", Optional.of(this.getClass().getName()), Optional.of("start"));
                 }
 
@@ -185,28 +187,13 @@ public class ConnectionManager {
     }
 
     /**
-     * Method to create a new direct connection (i.e. open a new socket) with a specific peer.
-     * This method is not synchronized but the ones who call it should be.
-     * @param name name of the host to connect to
-     * @return a reference to the socket created
-     * @throws IOException if something goes wrong
-     */
-    private synchronized ClientSocketHandler createDirectConnection(NodeName name) throws IOException {
-        Socket socket = new Socket(name.getIP(), name.getPort());
-        LoggerManager.getInstance().mutableInfo("Creating a new connection on socket " + socket.getInetAddress().getHostAddress(), Optional.of(this.getClass().getName()), Optional.of("createDirectConnection"));
-        ClientSocketHandler handler = new ClientSocketHandler(socket, this);
-        handler.run();
-        this.handlerList.add(handler);
-        return handler;
-    }
-
-    /**
      * Processes a direct connection message received from another node
+     * @param nodeName Name of the node to be added to the table
      * @param handler handler of the socket
      * @throws RoutingTableNodeAlreadyPresentException if the ip address is already in the routing table
      */
-    private void addNewRoutingTableEntry(ClientSocketHandler handler) throws RoutingTableNodeAlreadyPresentException {
-        this.routingTable.get().addPath(handler.getRemoteNodeName(),handler);
+    private void addNewRoutingTableEntry(NodeName nodeName, ClientSocketHandler handler) throws RoutingTableNodeAlreadyPresentException {
+        this.routingTable.get().addPath(nodeName,handler);
     }
 
     // <editor-fold desc="Join procedure">
@@ -217,43 +204,118 @@ public class ConnectionManager {
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
     public synchronized void joinNetwork(NodeName anchorName) throws IOException {
-        JoinMsg msg = new JoinMsg();
+        Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = this.createDirectConnection(anchorName);
+        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
+        ThreadPool.submit(handler);
         //send join msg to anchor node & wait for ack
+        JoinMsg msg = new JoinMsg(this.name);
         try {
-            this.sendMessageSynchronized(msg,handler);
+
+            LoggerManager.getInstance().mutableInfo("Joining the network to anchor "+anchorName.getIP()+":"+anchorName.getPort(), Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
+
+            boolean ret = false;
+
+            // TODO: refactor a bit with exceptions
+            while(!ret){
+                ret=this.sendMessageSynchronized(msg,handler);
+
+                if(!ret) LoggerManager.getInstance().mutableInfo("Something went wrong. Maybe it was a lock problem, so retry...", Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
+            }
+
+            LoggerManager.getInstance().mutableInfo("Ack from anchor received!", Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
+
+            // If everything went well continue...
+
+            // Add it as a parent in the spt
+            this.spt.get().setAnchorNodeHandler(handler);
+            // Add it to the active list of handlers
+            this.handlerList.add(handler);
+            // Start the ping pong with the handler
+            handler.startPingPong(true);
+
         } catch (ConnectionException e) {
             //todo: ack not received
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Error waiting for ack:", e);
-            return;
         }
-        this.spt.get().setAnchorNodeHandler(handler);
-        handler.startPingPong(true);
     }
 
     /**
     * Handles a join request received from another node in the network.
     *
-    * @param handler the {@link ClientSocketHandler} managing the client communication
+    * @param joinMsg Message received
+    * @param unnamedHandler the {@link UnNamedSocketHandler} managing the client communication
     *                for the incoming connection.
-    * @throws UnknownHostException if the IP address of the host node cannot be resolved.
     */
-    private void joinNewNode(ClientSocketHandler handler) throws UnknownHostException {
+    synchronized void receiveNewJoinMessage(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) {
         try {
-            //add node in direct connection list and in routing table
-            this.addNewRoutingTableEntry(handler);
+            LoggerManager.getInstance().mutableInfo("Join request received from node "+joinMsg.getJoinerName().getIP()+":"+joinMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
+            // Create the new handler
+            ClientSocketHandler handler = new ClientSocketHandler(unnamedHandler, joinMsg.getJoinerName(), this);
+            // Add it in the current handler list
+            this.handlerList.add(handler);
+            // Remove the unnamed handler from the list. The garbage collector will do its job later
+            this.unNamedHandlerList.remove(unnamedHandler);
+            // Add a new routing table entry
+            this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
+            // Since it is a new direct connection I need to add it to the spt
+            this.spt.get().getChildren().add(handler);
+            // Submit the new handler to the thread pool
+            ThreadPool.submit(handler);
+
+            // Since the join is a synchronous process we need to send back the ack
+            MessageAck msgAck = new MessageAck(joinMsg.getSequenceNumber());
+            boolean ret=false;
+            // TODO: refactor a bit with exceptions
+            while(!ret){
+                ret=handler.sendMessage(msgAck);
+                if(!ret) LoggerManager.getInstance().mutableInfo("Something went wrong. Maybe it was a lock problem, so retry...", Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
+            }
+
+            //forward join notify to active neighbours
+            JoinForwardMsg m = new JoinForwardMsg(joinMsg.getJoinerName());
+
+            LoggerManager.getInstance().mutableInfo("Forwarding info to the other nodes.", Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
+
+            for(ClientSocketHandler h : this.handlerList){
+                if(h!=handler) h.sendMessage(m);
+            }
+
         } catch (RoutingTableNodeAlreadyPresentException e) {
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
+    }
 
-        //forward join notify to neighbours
-        // TODO: maybe this should need an ack?
-        JoinForwardMsg m = new JoinForwardMsg(handler.getRemoteNodeName());
+    /**
+     * Handles a direct connection request received from another node in the network.
+     *
+     * @param directConnectionMsg Message received
+     * @param unnamedHandler the {@link UnNamedSocketHandler} managing the client communication
+     *                for the incoming connection.
+     */
+    synchronized void receiveNewDirectConnectionMessage(DirectConnectionMsg directConnectionMsg, UnNamedSocketHandler unnamedHandler) {
+        // TODO: refactor duplicate code with above function
+        try {
+            LoggerManager.getInstance().mutableInfo("Direct connection request received from node "+directConnectionMsg.getJoinerName().getIP()+":"+directConnectionMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewDirectConnectionMessage"));
+            //create socket for the anchor node, add to direct connection list and save as anchor node
+            ClientSocketHandler handler = new ClientSocketHandler(unnamedHandler, directConnectionMsg.getJoinerName(),this);
+            ThreadPool.submit(handler);
+            // Remove the unnamed handler from the list. The garbage collector will do its job later
+            this.unNamedHandlerList.remove(unnamedHandler);
+            // Add a new routing table entry
+            this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
+            // Since it is not a direct connection it does not need to be added to the spt
+            // Submit the new handler to the thread pool
+            ThreadPool.submit(handler);
 
-        for(ClientSocketHandler h : this.handlerList){
-            if(h!=handler) h.sendMessage(m);
+            // Since the direct connection is not synchronous we do not need to send back an ack
+
+            // And no forwarding
+
+        } catch (RoutingTableNodeAlreadyPresentException e) {
+            //TODO manage: if I receive a join from a node already in the routing table (wtf)
+            return;
         }
     }
 
@@ -267,15 +329,21 @@ public class ConnectionManager {
 
         try {
             if(randomValue < this.directConnectionProbability){
-                //create socket connection with the joiner to instantiate a new direct connection
-                ClientSocketHandler joinerHandler = this.createDirectConnection(msg.getNewNodeName());
+                // Open a new socket
+                Socket socket = new Socket(msg.getJoinerName().getIP(),msg.getJoinerName().getPort());
+                // Create the new handler
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, msg.getJoinerName(),this);
+                ThreadPool.submit(joinerHandler);
+                // Add it in the current handler list
+                this.handlerList.add(joinerHandler);
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg());
+                joinerHandler.sendMessage(new DirectConnectionMsg(this.name));
                 //add node in routing table
-                this.routingTable.get().addPath(msg.getNewNodeName(), joinerHandler);
+                this.addNewRoutingTableEntry(msg.getJoinerName(), joinerHandler);
+                // Do not to spt as it is not a direct connection
             }else {
                 //creating undirected path to the joiner node with the anchor node
-                this.routingTable.get().addPath(msg.getNewNodeName(),handler);
+                this.routingTable.get().addPath(msg.getJoinerName(),handler);
             }
         } catch (RoutingTableNodeAlreadyPresentException e) {
             // Not much we can do
@@ -285,16 +353,18 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    public synchronized void exitNetwork() throws IOException {
+    // TODO: fix this too
+    public synchronized void exitNetwork() throws IOException{
         //reassign all child to the current anchor node of the exiting node
         ClientSocketHandler handler = this.spt.get().getAnchorNodeHandler();
 
         //send exit message to all child
+
         ExitMsg m = new ExitMsg(handler.getRemoteNodeName());
         this.sendBroadcastMsg(m);
 
         //clear handler list
-        this.handlerList.clear();
+        this.unNamedHandlerList.clear();
 
         //clear routing table
         this.routingTable.get().clearTable();
@@ -305,7 +375,6 @@ public class ConnectionManager {
             this.routingTable.get().removePath(handler.getRemoteNodeName());
             this.routingTable.get().removeAllIndirectPath(handler);
             handler.close();
-            this.handlerList.remove(handler);
 
             ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
             if(handler == anchorNodeHandler){
@@ -344,7 +413,7 @@ public class ConnectionManager {
         }
 
         // Check if there is already a direct connection with the new anchor node.
-        if( newAnchorNextHop.getRemoteNodeName().equals(msg.getNewAnchorName()) ){
+        if (newAnchorNextHop.getRemoteNodeName().equals(msg.getNewAnchorName())) {
             //TODO: there is already a direct cnt between this node and the anchor -> start ping pong
             //set new anchor node
             this.spt.get().setAnchorNodeHandler(newAnchorNextHop);
@@ -419,7 +488,7 @@ public class ConnectionManager {
 
         do {
             try {
-                ClientSocketHandler handler = routingTable.get().getNextHop(destinationNodeName);
+                ClientSocketHandler handler = this.routingTable.get().getNextHop(destinationNodeName);
                 handler.sendMessage(message);
             } catch (RoutingTableNodeNotPresentException e) {
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not present in routing table", e);
@@ -503,12 +572,7 @@ public class ConnectionManager {
 
         switch(m.getInternalID()){
             case MESSAGE_JOIN -> {
-                try {
-                    this.joinNewNode(handler);
-                } catch (UnknownHostException e) {
-                    // TODO: decide
-                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Unknown host", e);
-                }
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "An already known node tried to join the network.");
             }
             case MESSAGE_EXIT -> {
                 try {
@@ -530,13 +594,7 @@ public class ConnectionManager {
                 }
             }
             case MESSAGE_DIRECTCONNECTION -> {
-                try{
-                    this.addNewRoutingTableEntry(handler);
-                }
-                catch (RoutingTableNodeAlreadyPresentException e){
-                    // TODO: decide, i dont know what these exceptions do
-                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Routing table exception", e);
-                }
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "An already known node tried to directly connect with this node.");
             }
             case MESSAGE_ACK -> {
                 // If the message received is an ack then remove it from the ack handler
@@ -625,8 +683,9 @@ public class ConnectionManager {
             case SNAPSHOT_TOKEN -> {
                 TokenMessage tokenMessage = (TokenMessage) m;
                 String tokenName = tokenMessage.getSnapshotId()+"_"+tokenMessage.getSnapshotCreatorName().getIP()+"_"+tokenMessage.getSnapshotCreatorName().getPort();
-                if(snapshotManager.manageSnapshotToken(tokenName,handler.getRemoteNodeName())){
-                    this.forwardToken(tokenMessage,handler);
+
+                if (snapshotManager.manageSnapshotToken(tokenName, handler.getRemoteNodeName())) {
+                    this.forwardToken(tokenMessage, handler);
                 }
             }
             case MESSAGE_NOTIMPLEMENTED -> {

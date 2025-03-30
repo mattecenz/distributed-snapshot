@@ -18,7 +18,7 @@ public class AppUtility implements ApplicationLayerInterface {
 
     @Override
     public <T extends Serializable> void receiveMessage(T messageContent) {
-        System.out.println("Received message");
+        SystemOutTS.println("Received message");
 
         // Perform the cast. It can be always done if we assume the application sends messages
         Message m = (Message) messageContent;
@@ -32,7 +32,7 @@ public class AppUtility implements ApplicationLayerInterface {
                 System.err.println("Received message not implemented");
             }
             case null, default -> {
-                System.err.println("Received message not implemented");
+                System.err.println("Received message is null or not known");
             }
         }
     }
