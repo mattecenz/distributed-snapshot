@@ -192,7 +192,9 @@ public class ConnectionManager {
      * @throws IOException if something goes wrong
      */
     private synchronized ClientSocketHandler createDirectConnection(NodeName name) throws IOException {
-        ClientSocketHandler handler = new ClientSocketHandler(new Socket(name.getIP(), name.getPort()), this);
+        Socket socket = new Socket(name.getIP(), name.getPort());
+        LoggerManager.getInstance().mutableInfo("Creating a new connection on socket " + socket.getInetAddress().getHostAddress(), Optional.of(this.getClass().getName()), Optional.of("createDirectConnection"));
+        ClientSocketHandler handler = new ClientSocketHandler(socket, this);
         handler.run();
         this.handlerList.add(handler);
         return handler;
