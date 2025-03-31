@@ -25,6 +25,7 @@ public class PingPongManager {
     }
 
     private void sendFirstPing(boolean isFirstPing){
+        LoggerManager.getInstance().mutableInfo("send first ping", Optional.of(this.getClass().getName()), Optional.of("sendFirstPing"));
         PingPongMessage pingPongMessage = null;
         try {
             pingPongMessage = new PingPongMessage(isFirstPing);
@@ -34,20 +35,23 @@ public class PingPongManager {
             return;
         }
         //startThread
+        LoggerManager.getInstance().mutableInfo("first ping successfully sent", Optional.of(this.getClass().getName()), Optional.of("sendFirstPing"));
         ThreadPool.submit(this::sendPing);
     }
 
     private void sendPing(){
+        LoggerManager.getInstance().mutableInfo("start periodic ping", Optional.of(this.getClass().getName()), Optional.of("sendPing"));
         PingPongMessage pingPongMessage = null;
         try {
             while (true) {
                 pingPongMessage = new PingPongMessage(false);
-                Thread.sleep(pingPongTimeout);
                 manager.sendMessageSynchronized(pingPongMessage, handler);
+                Thread.sleep(pingPongTimeout);
             }
         } catch (InterruptedException e) {
             //todo: manage exception
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "[PingPongManager] error while waiting for pong ", e);
+            return;
         } catch (ConnectionException e){
             pingFail(pingPongMessage.getSequenceNumber());
             return;

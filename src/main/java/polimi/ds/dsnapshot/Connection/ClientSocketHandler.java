@@ -5,6 +5,7 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.IOException;
@@ -142,7 +143,7 @@ public class ClientSocketHandler implements Runnable{
             // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
             // will sleep, else an exception is generated.
             // TODO: wrap in a utils class
-            this.socket.setSoTimeout(5000);
+            this.socket.setSoTimeout(Config.getInt("network.PingPongTimeout")*2);
         }
         catch (SocketException e) {
             //TODO: what to do ?
@@ -205,7 +206,7 @@ public class ClientSocketHandler implements Runnable{
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {
                     LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
-                    // TODO: what to do ?
+                    // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
                 }catch (ClassNotFoundException e){
                     LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
                     // TODO: what to do ?
