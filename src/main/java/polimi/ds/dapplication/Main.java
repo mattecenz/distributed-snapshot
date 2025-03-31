@@ -121,18 +121,18 @@ public class Main {
     }
 
     private static void joinNetwork(){
-        SystemOutTS.print("Enter port of the client you want to join: ");
+        SystemOutTS.print("Enter the port you want to open your connection: ");
         int nPort = scanner.nextInt();
         scanner.nextLine();
 
         // TODO: is it good ?
         JavaDistributedSnapshot.getInstance().startSocketConnection(nPort);
 
-        SystemOutTS.print("Enter network entry point ip address: ");
+        SystemOutTS.print("Enter ip of the node you want to connect to: ");
         String ip = retryInput(regexIp);
 
         // Avoid error checking on the port for the moment
-        SystemOutTS.print("Enter network entry point port: ");
+        SystemOutTS.print("Enter port of the node you want to connect to: ");
         int port = scanner.nextInt();
         scanner.nextLine();
 
@@ -155,6 +155,7 @@ public class Main {
 
         SystemOutTS.print("Enter port of the client you want to create: ");
         int port = scanner.nextInt();
+        scanner.nextLine();
 
         // TODO: is it good ?
         JavaDistributedSnapshot.getInstance().startSocketConnection(port);
@@ -166,7 +167,7 @@ public class Main {
         SystemOutTS.println("Hello, World!");
 
         // Ask the client if he wants to join a network or not
-        SystemOutTS.print("Do you want to create a new network? [y/N] ");
+        SystemOutTS.print("Do you want to create a new network? [Y/N] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){
