@@ -1,56 +1,76 @@
 package polimi.ds.dsnapshot.Connection;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
+
+import java.net.Socket;
+
+import static org.junit.jupiter.api.Assertions.*;
+
 public class RoutingTableTest {
 
     private RoutingTable routingTable;
     private ClientSocketHandler socketHandler;
 
+    @Mock
+    Socket socket;
 
-    /*@BeforeEach
+
+    @BeforeEach
     void setUp() {
         // Inizializza una nuova tabella di routing prima di ogni test
         routingTable = new RoutingTable();
 
-        socketHandler = new ClientSocketHandler(new Socket());
+        MockitoAnnotations.openMocks(this);
+
+
     }
 
     @Test
-    void testAddPathSuccessfully() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node1",10);
+    void testAddPathSuccessfully() throws RoutingTableNodeAlreadyPresentException, RoutingTableNodeNotPresentException {
+        NodeName node1 = new NodeName("Node1",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
         routingTable.addPath(node1, socketHandler);
 
-        assertNotNull(routingTable.getNextHop(node1));
-        assertEquals(socketHandler, routingTable.getNextHop(node1));
+        NodeName nodeTest = new NodeName("Node1",10);
+        assertDoesNotThrow(() ->{
+            routingTable.getNextHop(nodeTest);
+        });
+        assertEquals(socketHandler, routingTable.getNextHop(nodeTest));
     }
 
     @Test
     void testAddPathThrowsExceptionForDuplicateNode() {
-        NetNode node1 = new NetNode("Node2",10);
+        NodeName node1 = new NodeName("Node2",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
         assertDoesNotThrow(() -> routingTable.addPath(node1, socketHandler));
 
-        RoutingTableException exception = assertThrows(RoutingTableException.class, () -> {
+        assertThrows(RoutingTableNodeAlreadyPresentException.class, () -> {
             routingTable.addPath(node1, socketHandler);
         });
-
-        assertEquals("destination already in the table", exception.getMessage());
     }
 
     @Test
     void testUpdatePathThrowsExceptionForNonExistentNode() {
-        NetNode node1 = new NetNode("Node4",10);
-        RoutingTableException exception = assertThrows(RoutingTableException.class, () -> {
+        NodeName node1 = new NodeName("Node4",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
+
+        assertThrows(RoutingTableNodeNotPresentException.class, () -> {
             routingTable.updatePath(node1, socketHandler);
         });
-
-        assertEquals("destination isn't present the table", exception.getMessage());
     }
 
     @Test
-    void testClearRoutingTable() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node5",10);
-        NetNode node2 = new NetNode("Node6",10);
+    void testClearRoutingTable() throws RoutingTableNodeAlreadyPresentException {
+        NodeName node1 = new NodeName("Node5",10);
+        NodeName node2 = new NodeName("Node6",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
         routingTable.addPath(node1, socketHandler);
         routingTable.addPath(node2, socketHandler);
@@ -61,8 +81,9 @@ public class RoutingTableTest {
     }
 
     @Test
-    void testGetPathSuccessfully() throws RoutingTableException {
-        NetNode node1 = new NetNode("Node7",10);
+    void testGetPathSuccessfully() throws RoutingTableNodeAlreadyPresentException, RoutingTableNodeNotPresentException {
+        NodeName node1 = new NodeName("Node7",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
         routingTable.addPath(node1, socketHandler);
 
@@ -76,19 +97,19 @@ public class RoutingTableTest {
 
     @Test
     void testGetPathThrowsExceptionForNonExistentNode() {
-        NetNode node1 = new NetNode("Node8",10);
+        NodeName node1 = new NodeName("Node8",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
-        RoutingTableException exception = assertThrows(RoutingTableException.class, () -> {
+        assertThrows(RoutingTableNodeNotPresentException.class, () -> {
             routingTable.getNextHop(node1);
         });
-
-        assertEquals("destination isn't present the table", exception.getMessage());
     }
 
     @Test
-    void testRemoveAllIndirectPathSuccessfully() throws RoutingTableException {
-        NetNode node = new NetNode("Node9",10);
-        NetNode node1 = new NetNode("Node10",10);
+    void testRemoveAllIndirectPathSuccessfully() throws RoutingTableNodeAlreadyPresentException {
+        NodeName node = new NodeName("Node9",10);
+        NodeName node1 = new NodeName("Node10",10);
+        socketHandler = new ClientSocketHandler(socket, node1, null);
 
         routingTable.addPath(node, socketHandler);
         routingTable.addPath(node1, socketHandler);
@@ -98,18 +119,5 @@ public class RoutingTableTest {
         assertTrue(routingTable.isEmpty());
     }
 
-    @Test
-    void testRemoveAllIndirectPathSuccessfully1() throws RoutingTableException {
-        NetNode node = new NetNode("Node9",10);
-        NetNode node1 = new NetNode("Node10",10);
 
-        ClientSocketHandler socketHandler1 = new ClientSocketHandler(new Socket());;
-
-        routingTable.addPath(node, socketHandler);
-        routingTable.addPath(node1, socketHandler1);
-
-        routingTable.removeAllIndirectPath(socketHandler);
-
-        assertFalse(routingTable.isEmpty());
-    }*/
 }

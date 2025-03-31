@@ -54,11 +54,16 @@ public class NodeName implements Serializable {
      * @return {@code true} if the two nodes have the same IP address and port,
      *         {@code false} otherwise.
      */
+    @Override
     public boolean equals(Object other) {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
 
         NodeName otherNodeName = (NodeName) other;
         return this.port == otherNodeName.port && Objects.equals(this.IP, otherNodeName.IP);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(IP, port);
     }
 }
