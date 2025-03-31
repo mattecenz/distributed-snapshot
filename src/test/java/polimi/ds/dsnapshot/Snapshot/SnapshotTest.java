@@ -63,7 +63,8 @@ public class SnapshotTest {
 
         //set the application interface allowing snapshot to retrieve the application state
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
-        javaDistributedSnapshot.joinNetwork(exampleApplicationInterface,"friggioggi",0);
+        javaDistributedSnapshot.setApplicationLayerInterface(exampleApplicationInterface);
+        javaDistributedSnapshot.joinNetwork("friggioggi",0);
 
         //fake routing table and spanning tree
         RoutingTable mockRoutingTable = new RoutingTable();
@@ -155,7 +156,8 @@ public class SnapshotTest {
 
         //set the application interface allowing snapshot to retrieve the application state
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
-        javaDistributedSnapshot.joinNetwork(exampleApplicationInterface,"friggioggi",0);
+        javaDistributedSnapshot.setApplicationLayerInterface(exampleApplicationInterface);
+        javaDistributedSnapshot.joinNetwork("friggioggi",0);
 
         //fake routing table and spanning tree
         RoutingTable mockRoutingTable = new RoutingTable();

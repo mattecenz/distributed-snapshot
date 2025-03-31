@@ -14,6 +14,7 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Optional;
 
 public class JavaDistributedSnapshot{
     private static JavaDistributedSnapshot instance;
@@ -33,16 +34,18 @@ public class JavaDistributedSnapshot{
     }
 
     //todo find better name
-    public void startSocketConnection(int hostPort) {
+    public void startSocketConnection(int hostPort, ApplicationLayerInterface applicationLayerInterface) {
         //start log
         LoggerManager.start(hostPort);
 
         connectionManager = new ConnectionManager(hostPort);
         connectionManager.start();
+
+        JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
+        LoggerManager.getInstance().mutableInfo("set application interface: " + applicationLayerInterface, Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
     }
 
-    public void joinNetwork(ApplicationLayerInterface applicationLayerInterface, String anchorNodeIp, int anchorNodePort) throws JavaDSException {
-        JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
+    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws JavaDSException {
         try {
             NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
             connectionManager.joinNetwork(anchorNodeName);
@@ -54,6 +57,10 @@ public class JavaDistributedSnapshot{
     @TestOnly
     public void setConnectionManager(ConnectionManager connectionManager) {
         JavaDistributedSnapshot.connectionManager = connectionManager;
+    }
+    @TestOnly
+    public void setApplicationLayerInterface(ApplicationLayerInterface applicationLayerInterface) {
+        JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
     }
 
     public void leaveNetwork() throws JavaDSException{
@@ -76,6 +83,7 @@ public class JavaDistributedSnapshot{
 
     public void ReceiveMessage(CallbackContent callbackContent){
         ThreadPool.submit(() ->{
+            LoggerManager.getInstance().mutableInfo("forward msg to app", Optional.of(this.getClass().getName()), Optional.of("ReceiveMessage"));
             byte [] messageContent = ((ApplicationMessage) callbackContent.getCallBackMessage()).getApplicationContent();
             applicationLayerInterface.receiveMessage(messageContent);
         });

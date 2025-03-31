@@ -551,7 +551,7 @@ public class ConnectionManager {
             // Here some other thread will have removed the sequence number from the set so it means that the ack
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
-            LoggerManager.getInstance().mutableInfo("Ack recceived, operations can be resumed", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+            LoggerManager.getInstance().mutableInfo("Ack received, operations can be resumed", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
             return true;
         }
 

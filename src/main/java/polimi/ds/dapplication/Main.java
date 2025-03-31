@@ -126,7 +126,7 @@ public class Main {
         scanner.nextLine();
 
         // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(nPort);
+        JavaDistributedSnapshot.getInstance().startSocketConnection(nPort, appUtility);
 
         SystemOutTS.print("Enter ip of the node you want to connect to: ");
         String ip = retryInput(regexIp);
@@ -137,7 +137,7 @@ public class Main {
         scanner.nextLine();
 
         try {
-            JavaDistributedSnapshot.getInstance().joinNetwork(appUtility, ip, port);
+            JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
 
             // At this moment we have a new connection so we can do whatever we want
             applicationLoop();
@@ -158,7 +158,7 @@ public class Main {
         scanner.nextLine();
 
         // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(port);
+        JavaDistributedSnapshot.getInstance().startSocketConnection(port, appUtility);
 
         applicationLoop();
     }
