@@ -5,6 +5,7 @@ import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
@@ -29,6 +30,7 @@ public class AckHandler{
      * @param handle handle of the thread to be notified
      */
     public synchronized void insertAckId(int ack, Thread handle) {
+        LoggerManager.getInstance().mutableInfo("inserting ack: " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("insertAckId"));
         this.acksPending.put(ack, handle);
     }
 
@@ -43,6 +45,7 @@ public class AckHandler{
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "No thread found in the ack map for ack " + ack);
             throw new RuntimeException("[ConnectionManager] No thread found in the ack map for ack " + ack);
         }
-        toNotify.interrupt();
+        LoggerManager.getInstance().mutableInfo("removing ack: " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("removeAckId"));
+        toNotify.notify();
     }
 }

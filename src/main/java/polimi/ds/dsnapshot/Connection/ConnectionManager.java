@@ -164,16 +164,21 @@ public class ConnectionManager {
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
             this.wait(Config.getInt("network.ackTimeout"));
-        } catch (InterruptedException e) {
-            // Here some other thread will have removed the sequence number from the set so it means that the ack
-            // Has been received correctly, and it is safe to return
-            // Still a bit ugly that you capture an exception and resume correctly...
+            // Once I have finished I have two possibilities. Either the ack has been removed from the list or not
+            // If it has been removed then an exception is thrown.
+            this.ackHandler.removeAckId(seqn);
+        }
+        catch (InterruptedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+            return false;
+        }
+        catch (RuntimeException e) {
+            // If a runtime exception is thrown it means that the ack has been removed, so it has been received.
             LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return true;
         }
-
-        // If the method is not interrupted it means that the ack has not been received
         // TODO: handle error of ack
+        // If no exception is thrown then it means that
         LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
         throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
     }
@@ -231,12 +236,17 @@ public class ConnectionManager {
             this.spt.get().setAnchorNodeHandler(handler);
             // Add it to the active list of handlers
             this.handlerList.add(handler);
+            // Add it to the routing table
+            this.routingTable.get().addPath(anchorName, handler);
             // Start the ping pong with the handler
             handler.startPingPong(true);
 
         } catch (ConnectionException e) {
             //todo: ack not received
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Error waiting for ack:", e);
+        } catch (RoutingTableNodeAlreadyPresentException e) {
+            // Should be impossible to reach this exception
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Node already present in routing table: ", e);
         }
     }
 
