@@ -259,7 +259,7 @@ public class ConnectionManager {
             // Add a new routing table entry
             this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
             // Since it is a new direct connection I need to add it to the spt
-            this.spt.get().getChildren().add(handler);
+            // this.spt.get().getChildren().add(handler);
             // Submit the new handler to the thread pool
             ThreadPool.submit(handler);
 
@@ -563,6 +563,7 @@ public class ConnectionManager {
         if(m.needsAck()){
             // TODO: need error checking here, and decide what we should do.
             //  This message will be sent asynchronously, so we could also send it in another thread.
+            LoggerManager.getInstance().mutableInfo("sending ack require from: "+ m.getClass().getName()+ m.getSequenceNumber(), Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
             handler.sendMessage(new MessageAck(m.getSequenceNumber()));
         }
 
@@ -597,6 +598,7 @@ public class ConnectionManager {
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "An already known node tried to directly connect with this node.");
             }
             case MESSAGE_ACK -> {
+                LoggerManager.getInstance().mutableInfo("ack received [sequence code: " + m.getSequenceNumber() + "]", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
                 // If the message received is an ack then remove it from the ack handler
                 this.ackHandler.removeAckId(m.getSequenceNumber());
             }

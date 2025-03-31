@@ -21,10 +21,16 @@ public class PingPongManager {
         manager = connectionManager;
         this.handler = handler;
         //send first ping
+        ThreadPool.submit(() -> {sendFirstPing(isFirstPing);});
+    }
+
+    private void sendFirstPing(boolean isFirstPing){
+        PingPongMessage pingPongMessage = null;
         try {
-            manager.sendMessageSynchronized(new PingPongMessage(isFirstPing),handler);
+            pingPongMessage = new PingPongMessage(isFirstPing);
+            manager.sendMessageSynchronized(pingPongMessage,handler);
         } catch (ConnectionException e) {
-            pingFail();
+            pingFail(pingPongMessage.getSequenceNumber());
             return;
         }
         //startThread
@@ -32,22 +38,24 @@ public class PingPongManager {
     }
 
     private void sendPing(){
+        PingPongMessage pingPongMessage = null;
         try {
             while (true) {
+                pingPongMessage = new PingPongMessage(false);
                 Thread.sleep(pingPongTimeout);
-                manager.sendMessageSynchronized(new PingPongMessage(true), handler);
+                manager.sendMessageSynchronized(pingPongMessage, handler);
             }
         } catch (InterruptedException e) {
             //todo: manage exception
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "[PingPongManager] error while waiting for pong ", e);
         } catch (ConnectionException e){
-            pingFail();
+            pingFail(pingPongMessage.getSequenceNumber());
             return;
         }
     }
 
-    private void pingFail(){
-        LoggerManager.instanceGetLogger().warning("unanswered ping message with" + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort());
+    private void pingFail(int sequenceNumber){
+        LoggerManager.instanceGetLogger().warning("unanswered ping message with " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort() + " [sequence number: " + sequenceNumber + " ]");
         //todo: React to ping pong fail
     }
 
