@@ -207,9 +207,11 @@ public class ClientSocketHandler implements Runnable{
                 } catch (IOException e) {
                     LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                     // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
+                    this.inAvailable.set(false);
                 }catch (ClassNotFoundException e){
                     LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
                     // TODO: what to do ?
+                    this.inAvailable.set(false);
                 }
             }
 
