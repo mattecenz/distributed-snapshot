@@ -363,8 +363,9 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    // TODO: fix this too
     public synchronized void exitNetwork() throws IOException{
+        //TODO can cause null on anchor node if the exiting node is the ones who create the net
+
         //reassign all child to the current anchor node of the exiting node
         ClientSocketHandler handler = this.spt.get().getAnchorNodeHandler();
 
@@ -387,6 +388,8 @@ public class ConnectionManager {
             handler.close();
 
             ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
+
+
             if(handler == anchorNodeHandler){
                 //reassign anchor node
                 // There has to be a better way of doing it
@@ -516,7 +519,9 @@ public class ConnectionManager {
     // TODO: create and throw some exceptions here
     private boolean sendAlongSPT(Message msg){
         // TODO: what if anchor node is null? Need to notify the application
+        if(this.spt.get().getAnchorNodeHandler()==null) return  false;
         boolean ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
+
 
         // TODO: case in which no children
         for(ClientSocketHandler h : this.spt.get().getChildren()){
