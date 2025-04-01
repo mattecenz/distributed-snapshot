@@ -183,14 +183,6 @@ public class ConnectionManager {
         throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
     }
 
-    private void sendBroadcastMsg(Message msg){
-        for(ClientSocketHandler h : this.spt.get().getChildren()) {
-            h.sendMessage(msg);
-        }
-        ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
-        if(anchorNodeHandler != null) anchorNodeHandler.sendMessage(msg);
-    }
-
     /**
      * Processes a direct connection message received from another node
      * @param nodeName Name of the node to be added to the table
@@ -372,7 +364,7 @@ public class ConnectionManager {
         //send exit message to all child
 
         ExitMsg m = new ExitMsg(handler.getRemoteNodeName());
-        this.sendBroadcastMsg(m);
+        this.forwardMessageAlongSPT(m, Optional.empty());
 
         //clear handler list
         this.unNamedHandlerList.clear();
@@ -438,7 +430,7 @@ public class ConnectionManager {
 
     private void sendExitNotify(NodeName nodeName){
         ExitNotify exitNotify = new ExitNotify(nodeName);
-        sendBroadcastMsg(exitNotify);
+        forwardMessageAlongSPT(exitNotify, Optional.empty());
     }
 
     // </editor-fold>
@@ -467,7 +459,7 @@ public class ConnectionManager {
         snapshotManager.manageSnapshotToken(snapshotCode,name);
 
         //notify the rest of the network
-        this.sendBroadcastMsg(tokenMessage);
+        this.forwardMessageAlongSPT(tokenMessage, Optional.empty());
     }
     // </editor-fold>
 
@@ -478,16 +470,16 @@ public class ConnectionManager {
      * @param receivedHandler handler from which the message has been received
      * @return true if everything went well.
      */
-    private boolean forwardMessageAlongSPT(Message msg, ClientSocketHandler receivedHandler){
+    private boolean forwardMessageAlongSPT(Message msg, Optional<ClientSocketHandler> receivedHandler){
         boolean ok = true;
 
         // I can just check the references for simplicity
-        if(receivedHandler!=this.spt.get().getAnchorNodeHandler() && this.spt.get().getAnchorNodeHandler()!=null){
+        if(this.spt.get().getAnchorNodeHandler()!=null && (receivedHandler.isEmpty() || receivedHandler.get()!=this.spt.get().getAnchorNodeHandler())){
             ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
         }
 
         for(ClientSocketHandler h : this.spt.get().getChildren()){
-            if(receivedHandler!=h) {
+            if (receivedHandler.isEmpty() || receivedHandler.get() != h) {
                 ok = h.sendMessage(msg) || ok;
             }
         }
@@ -512,27 +504,6 @@ public class ConnectionManager {
     }
 
     /**
-     * Useful method to send messages along the spt
-     * @param msg message to be sent
-     * @return true if everything went well
-     */
-    // TODO: create and throw some exceptions here
-    private boolean sendAlongSPT(Message msg){
-        // TODO: what if anchor node is null? Need to notify the application
-        if(this.spt.get().getAnchorNodeHandler()==null) return  false;
-        boolean ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
-
-
-        // TODO: case in which no children
-        for(ClientSocketHandler h : this.spt.get().getChildren()){
-            ok = h.sendMessage(msg) || ok;
-            LoggerManager.getInstance().mutableInfo( "Sending message to all children", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
-        }
-
-        return ok;
-    }
-
-    /**
      * Method invoked when we need to discover if a node is present in the network
      * @param destinationNodeName name of the node to discover
      * @return true if everything went well
@@ -540,7 +511,7 @@ public class ConnectionManager {
     private synchronized boolean sendDiscoveryMessage(NodeName destinationNodeName){
         MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
 
-        boolean ok = this.sendAlongSPT(msgd);
+        boolean ok = this.forwardMessageAlongSPT(msgd, Optional.empty());
 
         if(!ok) return false;
 
@@ -664,7 +635,7 @@ public class ConnectionManager {
                         LoggerManager.getInstance().mutableInfo( "Node not present, forwarding", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
 
                         // Forward to all the handlers in the spt except the one you received it from
-                        this.forwardMessageAlongSPT(msgd, handler);
+                        this.forwardMessageAlongSPT(msgd, Optional.ofNullable(handler));
                     }
                 }
             }
@@ -693,7 +664,7 @@ public class ConnectionManager {
                     }catch(RoutingTableNodeNotPresentException e){
                         System.err.println("[ConnectionManager] Node not present, forwarding: " + e.getMessage());
 
-                        this.forwardMessageAlongSPT(msgdr, handler);
+                        this.forwardMessageAlongSPT(msgdr, Optional.ofNullable(handler));
                     }
                 }
             }
