@@ -72,18 +72,31 @@ public class RoutingTable implements Serializable {
         LoggerManager.getInstance().mutableInfo("add new path to the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("addPath"));
 
         this.routingTableFields.put(destination,nextHopConnection);
+
+        LoggerManager.getInstance().mutableInfo(this.getRoutingTableString(), Optional.of(this.getClass().getName()), Optional.of("addPath"));
     }
 
     /**
      * Utility method for printing the internal routing table
      */
     protected void printRoutingTable() { //TODO: use log
-        System.out.println("Routing Table:");
+        System.out.println(this.getRoutingTableString());
+    }
+
+
+    private String getRoutingTableString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Routing Table:\n");
         var keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            System.out.println("Node: " + key + " -> Handler: " + routingTableFields.get(key));
+            sb.append("Node: ")
+                    .append(key.getIP()).append(":").append(key.getPort())
+                    .append(" -> Handler: ")
+                    .append(routingTableFields.get(key))
+                    .append("\n");
         }
+        return sb.toString();
     }
 
     /**
@@ -109,6 +122,8 @@ public class RoutingTable implements Serializable {
         LoggerManager.getInstance().mutableInfo("remove existing path from the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("removePath"));
 
         this.routingTableFields.remove(destination);
+
+        LoggerManager.getInstance().mutableInfo(this.getRoutingTableString(), Optional.of(this.getClass().getName()), Optional.of("removePath"));
     }
 
     /**
@@ -123,6 +138,8 @@ public class RoutingTable implements Serializable {
                 this.routingTableFields.remove(key);
             }
         }
+
+        LoggerManager.getInstance().mutableInfo(this.getRoutingTableString(), Optional.of(this.getClass().getName()), Optional.of("removeAllIndirectPath"));
     }
 
     /**
@@ -139,6 +156,8 @@ public class RoutingTable implements Serializable {
             LoggerManager.getInstance().mutableInfo("next hop is null", Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
             throw new RoutingTableNodeNotPresentException();
         }
+
+        LoggerManager.getInstance().mutableInfo(this.getRoutingTableString(), Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
         return nextHop;
     }
 }
