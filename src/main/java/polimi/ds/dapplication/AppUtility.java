@@ -20,7 +20,7 @@ public class AppUtility implements ApplicationLayerInterface {
     }
 
     @Override
-    public <T extends Serializable> void receiveMessage(T messageContent) {
+    public void receiveMessage(Serializable messageContent) {
         SystemOutTS.println("Received message");
 
         // Perform the cast. It can be always done if we assume the application sends messages

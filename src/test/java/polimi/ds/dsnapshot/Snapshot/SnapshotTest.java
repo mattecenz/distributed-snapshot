@@ -226,7 +226,7 @@ public class SnapshotTest {
         assert(savedSnapshotState.getMessageInputStack().size()==snapshotMessagesContent.size());
         for(CallbackContentWithName c : savedSnapshotState.getMessageInputStack()){
             ApplicationMessage am = (ApplicationMessage) c.getCallBackMessage();
-            String s = new String(am.getApplicationContent());
+            String s = (String)am.getApplicationContent();
             System.out.println("saved message content: " + s);
             assertDoesNotThrow(() -> {assert(snapshotMessagesContent.contains(s));});
         }
@@ -237,14 +237,13 @@ public class SnapshotTest {
             System.out.println("token received from channel: " + ip + ":" + port);
             snapshotManger.manageSnapshotToken("testS2", new NodeName(ip,port));
         }else {
-            byte [] messageBytes = message.getBytes();
-            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(messageBytes,new NodeName(ip,port),false));
+            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(message,new NodeName(ip,port),false));
         }
     }
     private static class ExampleApplicationInterface implements ApplicationLayerInterface {
         public ExampleApplicationLayerState state = new ExampleApplicationLayerState();
         @Override
-        public <T extends Serializable> void receiveMessage(T messageContent) {
+        public void receiveMessage(Serializable messageContent) {
 
         }
 

@@ -36,7 +36,7 @@ public class PingPongManager {
         }
         //startThread
         LoggerManager.getInstance().mutableInfo("first ping successfully sent", Optional.of(this.getClass().getName()), Optional.of("sendFirstPing"));
-        ThreadPool.submit(this::sendPing);
+        this.sendPing();
     }
 
     private void sendPing(){
