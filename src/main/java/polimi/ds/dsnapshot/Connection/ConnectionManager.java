@@ -82,7 +82,7 @@ public class ConnectionManager {
         }
         this.name = new NodeName(thisIP, port);
 
-        LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully...", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+        LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+thisIP+":"+port , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
 
     public void start(){
@@ -149,7 +149,8 @@ public class ConnectionManager {
         LoggerManager.getInstance().mutableInfo("Preparing for receiving an ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
-        this.ackHandler.insertAckId(seqn, Thread.currentThread());
+        Object lock=new Object();
+        this.ackHandler.insertAckId(seqn, lock);
 
         LoggerManager.getInstance().mutableInfo("Sending the message ...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         boolean b = handler.sendMessage(m);
@@ -163,7 +164,9 @@ public class ConnectionManager {
 
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
-            this.wait(Config.getInt("network.ackTimeout"));
+            synchronized (lock) {
+                lock.wait(Config.getInt("network.ackTimeout"));
+            }
             // Once I have finished I have two possibilities. Either the ack has been removed from the list or not
             // If it has been removed then an exception is thrown.
             this.ackHandler.removeAckId(seqn);
@@ -172,7 +175,7 @@ public class ConnectionManager {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
             return false;
         }
-        catch (RuntimeException e) {
+        catch (AckHandlerAlreadyRemovedException e) {
             // If a runtime exception is thrown it means that the ack has been removed, so it has been received.
             LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return true;
@@ -200,7 +203,7 @@ public class ConnectionManager {
      * @param anchorName name of the anchor node to connect to
      * @throws IOException if an I/O error occurs during socket connection or communication
      */
-    public synchronized void joinNetwork(NodeName anchorName) throws IOException {
+    public void joinNetwork(NodeName anchorName) throws IOException {
         Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
         //create socket for the anchor node, add to direct connection list and save as anchor node
         ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
@@ -517,16 +520,24 @@ public class ConnectionManager {
 
         // Do the same as a synchronized message, wait for the reply
         // TODO: a bit of duplicated code
-        this.ackHandler.insertAckId(msgd.getSequenceNumber(), Thread.currentThread());
+        Object lock = new Object();
+        this.ackHandler.insertAckId(msgd.getSequenceNumber(), lock);
 
         try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
             // TODO: wrap in constant
-            this.wait(5000);
+            synchronized (lock){
+                lock.wait(5000);
+            }
+
+            this.ackHandler.removeAckId(msgd.getSequenceNumber());
+
         } catch (InterruptedException e) {
             // Here some other thread will have removed the sequence number from the set so it means that the ack
             // Has been received correctly, and it is safe to return
             // Still a bit ugly that you capture an exception and resume correctly...
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted while waiting for ack", e);
+        } catch (AckHandlerAlreadyRemovedException e) {
             LoggerManager.getInstance().mutableInfo("Ack received, operations can be resumed", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
             return true;
         }
@@ -586,7 +597,11 @@ public class ConnectionManager {
             case MESSAGE_ACK -> {
                 LoggerManager.getInstance().mutableInfo("ack received [sequence code: " + m.getSequenceNumber() + "]", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
                 // If the message received is an ack then remove it from the ack handler
-                this.ackHandler.removeAckId(m.getSequenceNumber());
+                try {
+                    this.ackHandler.removeAckId(m.getSequenceNumber());
+                } catch (AckHandlerAlreadyRemovedException e) {
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
+                }
             }
             case MESSAGE_PINGPONG -> {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
@@ -651,7 +666,11 @@ public class ConnectionManager {
 
                 // If I am the destination of the reply then notify my thread
                 if(msgdr.getDestinationName()==this.name){
-                    this.ackHandler.removeAckId(msgdr.getSequenceNumber());
+                    try {
+                        this.ackHandler.removeAckId(msgdr.getSequenceNumber());
+                    } catch (AckHandlerAlreadyRemovedException e) {
+                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
+                    }
                 }
                 // Else I need to forward it
                 else{

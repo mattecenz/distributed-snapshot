@@ -13,6 +13,7 @@ import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.io.IOException;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -72,19 +73,17 @@ public class JavaDistributedSnapshot{
         }
     }
 
-    public <T extends Serializable> void sendMessage(T messageContent, boolean requireAck, String destinationIp, int destinationPort) throws IOException {
-        byte[] applicationMessageContente = SerializationUtils.serialize(messageContent);
-
+    public void sendMessage(Serializable messageContent, boolean requireAck, String destinationIp, int destinationPort) throws IOException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
-        ApplicationMessage applicationMessage = new ApplicationMessage(applicationMessageContente, destinationNodeName, requireAck);
+        ApplicationMessage applicationMessage = new ApplicationMessage(messageContent, destinationNodeName, requireAck);
         connectionManager.sendMessage(applicationMessage, destinationNodeName);
     }
 
     public void ReceiveMessage(CallbackContent callbackContent){
         ThreadPool.submit(() ->{
             LoggerManager.getInstance().mutableInfo("forward msg to app", Optional.of(this.getClass().getName()), Optional.of("ReceiveMessage"));
-            byte [] messageContent = ((ApplicationMessage) callbackContent.getCallBackMessage()).getApplicationContent();
+            Serializable messageContent = ((ApplicationMessage) callbackContent.getCallBackMessage()).getApplicationContent();
             applicationLayerInterface.receiveMessage(messageContent);
         });
     }
