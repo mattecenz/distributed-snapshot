@@ -212,6 +212,10 @@ public class ClientSocketHandler implements Runnable{
                     LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
                     // TODO: what to do ?
                     this.inAvailable.set(false);
+                }catch (NullPointerException e){
+                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "NullPointerException", e);
+                    System.out.println(e.getMessage());
+                    this.inAvailable.set(false);
                 }
             }
 

@@ -616,9 +616,13 @@ public class ConnectionManager {
                 }
             }
             case MESSAGE_APP -> {
-                //todo if message require to be forward
-                Event messageInputChannel = handler.getMessageInputChannel();
-                messageInputChannel.publish(m);
+                ApplicationMessage app = (ApplicationMessage)m;
+                if(app.getApplicationName().equals(this.name)) {
+                    Event messageInputChannel = handler.getMessageInputChannel();
+                    messageInputChannel.publish(m);
+                }else{
+                    this.sendMessage(m,app.getApplicationName());
+                }
             }
             case MESSAGE_DISCOVERY -> {
                 MessageDiscovery msgd = (MessageDiscovery) m;
