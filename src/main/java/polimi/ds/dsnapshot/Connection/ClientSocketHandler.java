@@ -137,18 +137,10 @@ public class ClientSocketHandler implements Runnable{
      */
     @Override
     public void run() {
-        // Set the timeout
-        try {
-            LoggerManager.getInstance().mutableInfo("Setting socket timeout...", Optional.of(this.getClass().getName()), Optional.of("run"));
-            // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
-            // will sleep, else an exception is generated.
-            // TODO: wrap in a utils class
-            this.socket.setSoTimeout(Config.getInt("network.PingPongTimeout")*2);
-        }
-        catch (SocketException e) {
-            //TODO: what to do ?
-            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Socket", e);
-        }
+        LoggerManager.getInstance().mutableInfo("Setting socket timeout...", Optional.of(this.getClass().getName()), Optional.of("run"));
+        // From the doc it says that when reading in this socket this is the max time (in ms) which the thread
+        // will sleep, else an exception is generated.
+        //this.socket.setSoTimeout(Config.getInt("network.PingPongTimeout")*2);
 
         // Create the object output stream
         try{
@@ -199,9 +191,9 @@ public class ClientSocketHandler implements Runnable{
             // Read a generic message and decide what to do
             while(inAvailable.get()){
                 try {
-                    LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
+                    LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("launchInboundMessagesThread"));
                     Message m = (Message) this.in.readObject();
-                    LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()), Optional.of("launchInboundMessagesThread"));
+                    LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("launchInboundMessagesThread"));
                     // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                     this.manager.receiveMessage(m, this);
                 } catch (IOException e) {

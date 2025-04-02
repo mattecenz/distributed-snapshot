@@ -302,7 +302,7 @@ public class ConnectionManager {
     synchronized void receiveNewDirectConnectionMessage(DirectConnectionMsg directConnectionMsg, UnNamedSocketHandler unnamedHandler) {
         // TODO: refactor duplicate code with above function
         try {
-            LoggerManager.getInstance().mutableInfo("Direct connection request received from node "+directConnectionMsg.getJoinerName().getIP()+":"+directConnectionMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewDirectConnectionMessage"));
+            LoggerManager.getInstance().mutableInfo("Direct connection request received from node: "+directConnectionMsg.getJoinerName().getIP()+":"+directConnectionMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewDirectConnectionMessage"));
             //create socket for the anchor node, add to direct connection list and save as anchor node
             ClientSocketHandler handler = new ClientSocketHandler(unnamedHandler, directConnectionMsg.getJoinerName(),this);
             ThreadPool.submit(handler);
@@ -319,6 +319,7 @@ public class ConnectionManager {
             // And no forwarding
 
         } catch (RoutingTableNodeAlreadyPresentException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node already in the routing table asked to connect", e);
             //TODO manage: if I receive a join from a node already in the routing table (wtf)
             return;
         }
@@ -331,9 +332,10 @@ public class ConnectionManager {
      */
     private void receiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
         double randomValue = ThreadLocalRandom.current().nextDouble();
-
+        LoggerManager.getInstance().mutableInfo("receive join forward from node: " + handler.getRemoteNodeName().getIP() + ":" +handler.getRemoteNodeName().getPort() + " for joiner node: " + msg.getJoinerName().getIP() +":"+ msg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveJoinForward"));
         try {
             if(randomValue < this.directConnectionProbability){
+                LoggerManager.getInstance().mutableInfo("probability win, create direct connection", Optional.of(this.getClass().getName()),Optional.of("receiveJoinForward"));
                 // Open a new socket
                 Socket socket = new Socket(msg.getJoinerName().getIP(),msg.getJoinerName().getPort());
                 // Create the new handler
