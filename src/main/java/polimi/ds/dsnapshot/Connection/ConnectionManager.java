@@ -312,7 +312,6 @@ public class ConnectionManager {
             this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
             // Since it is not a direct connection it does not need to be added to the spt
             // Submit the new handler to the thread pool
-            ThreadPool.submit(handler);
 
             // Since the direct connection is not synchronous we do not need to send back an ack
 
@@ -344,7 +343,10 @@ public class ConnectionManager {
                 // Add it in the current handler list
                 this.handlerList.add(joinerHandler);
                 //send to joiner a message to create a direct connection
-                joinerHandler.sendMessage(new DirectConnectionMsg(this.name));
+                boolean ret=false;
+                while(!ret) {
+                    ret = joinerHandler.sendMessage(new DirectConnectionMsg(this.name));
+                }
                 //add node in routing table
                 this.addNewRoutingTableEntry(msg.getJoinerName(), joinerHandler);
                 // Do not to spt as it is not a direct connection

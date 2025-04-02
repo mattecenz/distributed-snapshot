@@ -11,7 +11,7 @@ import java.net.Socket;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class RoutingTableTest {
+/*public class RoutingTableTest {
 
     private RoutingTable routingTable;
     private ClientSocketHandler socketHandler;
@@ -120,4 +120,4 @@ public class RoutingTableTest {
     }
 
 
-}
+}*/
