@@ -168,9 +168,9 @@ public class ClientSocketHandler implements Runnable{
         // Read a generic message and decide what to do
         while(inAvailable.get()){
             try {
-                LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("launchInboundMessagesThread"));
+                LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("run"));
                 Message m = (Message) this.in.readObject();
-                LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("launchInboundMessagesThread"));
+                LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("run"));
                 // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                 this.manager.receiveMessage(m, this);
             } catch (IOException e) {

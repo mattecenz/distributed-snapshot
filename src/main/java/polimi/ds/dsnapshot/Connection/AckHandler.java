@@ -45,7 +45,7 @@ public class AckHandler{
         // Notify the object
         synchronized (toNotify){
             LoggerManager.getInstance().mutableInfo("removing ack: " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("removeAckId"));
-            toNotify.notify();
+            toNotify.notifyAll();
         }
     }
 }
