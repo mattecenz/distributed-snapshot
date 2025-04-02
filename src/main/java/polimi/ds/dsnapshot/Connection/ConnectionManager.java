@@ -631,6 +631,15 @@ public class ConnectionManager {
             case MESSAGE_DISCOVERY -> {
                 MessageDiscovery msgd = (MessageDiscovery) m;
 
+                // I need to check if I am the correct destination
+                if(Objects.equals(msgd.getDestinationName(),this.name)){
+
+                    // Send ack back
+                    MessageDiscoveryReply msgdr = new MessageDiscoveryReply(msgd.getSequenceNumber(), this.name, msgd.getDestinationName());
+                    handler.sendMessage(msgdr);
+                    return;
+                }
+
                 // Save in routing table
                 try {
                     this.routingTable.get().addPath(msgd.getOriginName(), handler);
@@ -639,32 +648,31 @@ public class ConnectionManager {
                     // I guess just do not do anything
                 }
 
-                // I need to check if I am the correct destination
-                if(msgd.getDestinationName()==this.name){
 
-                    // Send ack back
-                    MessageDiscoveryReply msgdr = new MessageDiscoveryReply(msgd.getSequenceNumber(), this.name, msgd.getDestinationName());
-                    handler.sendMessage(msgdr);
-
+                // just forward the signal
+                ClientSocketHandler nextHandler=null;
+                try{
+                    nextHandler = this.routingTable.get().getNextHop(msgd.getDestinationName());
+                    nextHandler.sendMessage(msgd);
                 }
-                // Else just forward the signal
-                else{
-                    ClientSocketHandler nextHandler=null;
-                    try{
-                        nextHandler = this.routingTable.get().getNextHop(msgd.getDestinationName());
-                        nextHandler.sendMessage(msgd);
-                    }
-                    catch(RoutingTableNodeNotPresentException e){
-                        LoggerManager.getInstance().mutableInfo( "Node not present, forwarding", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+                catch(RoutingTableNodeNotPresentException e){
+                    LoggerManager.getInstance().mutableInfo( "Node not present, forwarding", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
 
-                        // Forward to all the handlers in the spt except the one you received it from
-                        this.forwardMessageAlongSPT(msgd, Optional.ofNullable(handler));
-                    }
+                    // Forward to all the handlers in the spt except the one you received it from
+                    this.forwardMessageAlongSPT(msgd, Optional.ofNullable(handler));
                 }
             }
             case MESSAGE_DISCOVERYREPLY -> {
                 MessageDiscoveryReply msgdr = (MessageDiscoveryReply) m;
 
+                if(Objects.equals(msgdr.getDestinationName(),this.name)){
+                    try {
+                        this.ackHandler.removeAckId(msgdr.getSequenceNumber());
+                    } catch (AckHandlerAlreadyRemovedException e) {
+                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
+                    }
+                    return;
+                }
                 // Save information in routing table
                 try {
                     this.routingTable.get().addPath(msgdr.getOriginName(),handler);
@@ -673,26 +681,18 @@ public class ConnectionManager {
                 }
 
                 // If I am the destination of the reply then notify my thread
-                if(msgdr.getDestinationName()==this.name){
-                    try {
-                        this.ackHandler.removeAckId(msgdr.getSequenceNumber());
-                    } catch (AckHandlerAlreadyRemovedException e) {
-                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
-                    }
-                }
-                // Else I need to forward it
-                else{
-                    // If it is in routing table then send it directly
-                    // TODO: can be refactored and merged with the case above
-                    ClientSocketHandler nextHandler=null;
-                    try{
-                        nextHandler = this.routingTable.get().getNextHop(msgdr.getDestinationName());
-                        nextHandler.sendMessage(msgdr);
-                    }catch(RoutingTableNodeNotPresentException e){
-                        System.err.println("[ConnectionManager] Node not present, forwarding: " + e.getMessage());
 
-                        this.forwardMessageAlongSPT(msgdr, Optional.ofNullable(handler));
-                    }
+                //I need to forward it
+                // If it is in routing table then send it directly
+                // TODO: can be refactored and merged with the case above
+                ClientSocketHandler nextHandler=null;
+                try{
+                    nextHandler = this.routingTable.get().getNextHop(msgdr.getDestinationName());
+                    nextHandler.sendMessage(msgdr);
+                }catch(RoutingTableNodeNotPresentException e){
+                    System.err.println("[ConnectionManager] Node not present, forwarding: " + e.getMessage());
+
+                    this.forwardMessageAlongSPT(msgdr, Optional.ofNullable(handler));
                 }
             }
             case SNAPSHOT_TOKEN -> {
