@@ -35,7 +35,7 @@ public class Snapshot {
 
     private final List<Event> inputChannels = new ArrayList<>();
 
-    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager) throws EventException, IOException {
+    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager, int hostPort) throws EventException, IOException {
         // Get the current time as a ZonedDateTime
         ZonedDateTime now = ZonedDateTime.now();
 
@@ -43,7 +43,7 @@ public class Snapshot {
         String timestampStr = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss").format(now);
 
         // File name & path
-        this.snapshotPath += snapshotCode + "_" + timestampStr + ".bin";
+        this.snapshotPath += snapshotCode + "-" + hostPort + "_" + timestampStr + ".bin";
 
         JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
         ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();

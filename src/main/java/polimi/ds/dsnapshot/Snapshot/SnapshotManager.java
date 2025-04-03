@@ -66,7 +66,7 @@ public class SnapshotManager {
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
         eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
-            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager);
+            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, channelName.getPort());
             snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to start snapshot " + snapshotCode, e);
@@ -75,8 +75,8 @@ public class SnapshotManager {
         }
     }
 
-    public SnapshotState getLastSnapshot() {
-        File file = getLastSnapshotFile();
+    public SnapshotState getLastSnapshot(int hostPort) {
+        File file = getLastSnapshotFile(hostPort);
         if(file!=null)LoggerManager.getInstance().mutableInfo("getLastSnapshot: "+ file.getName(), Optional.of(this.getClass().getName()), Optional.of("getLastSnapshot"));
         else LoggerManager.getInstance().mutableInfo("didn't find a snapshot file", Optional.of(this.getClass().getName()), Optional.of("getLastSnapshot"));
 
@@ -86,11 +86,14 @@ public class SnapshotManager {
         }
         return state;
     }
-    private File getLastSnapshotFile(){
+    private File getLastSnapshotFile(int hostPort){
         File snapshotsDir = new File(snapshotPath);
 
         // List all files in the directory that match the pattern
-        File[] files = snapshotsDir.listFiles((dir, name) -> name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin"));
+        File[] files = snapshotsDir.listFiles((dir, name) ->
+                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
+                name.contains("-" + hostPort + "_")
+        );
 
         if (files == null || files.length == 0) {
             return null; // No files found
@@ -121,6 +124,7 @@ public class SnapshotManager {
         String filename = file.getName();
         // Extract the timestamp part and remove the ".bin"
         String timestampStr = filename.split("_")[1].replace(".bin", "");
+        System.out.println();
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
         // Parse into LocalDateTime and then combine with the system default zone

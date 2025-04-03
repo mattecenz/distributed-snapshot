@@ -91,7 +91,7 @@ public class SnapshotTest {
 
         Thread.sleep(1000);//to be sure the file is saved
 
-        byte[] applicationState = snapshotManger.getLastSnapshot().getApplicationState();
+        byte[] applicationState = snapshotManger.getLastSnapshot(0).getApplicationState();
 
         assertDoesNotThrow(() -> {
             ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
@@ -103,7 +103,7 @@ public class SnapshotTest {
     @Test
     public void testGetSnapshotNull() throws IOException {
         this.deleteAllFiles(snapshotPath);
-        SnapshotState snapshotState = snapshotManger.getLastSnapshot();
+        SnapshotState snapshotState = snapshotManger.getLastSnapshot(1);
         assert (snapshotState==null);
     }
 
@@ -117,7 +117,7 @@ public class SnapshotTest {
         //expected snapshot content
         List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9");
 
-        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent,2);
     }
 
 
@@ -131,7 +131,7 @@ public class SnapshotTest {
         //expected snapshot content
         List<String> snapshotMessagesContent = Arrays.asList();
 
-        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent,3);
     }
 
     @Test
@@ -144,11 +144,11 @@ public class SnapshotTest {
         //expected snapshot content
         List<String> snapshotMessagesContent = Arrays.asList("6","7","8","9","12","13","14");
 
-        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent);
+        this.testTokenSupport(snapshotStarterMessages,n1Messages,n2Messages,snapshotMessagesContent,4);
     }
 
 
-    private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent) throws InterruptedException, JavaDSException, EventException {
+    private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, JavaDSException, EventException {
         //application state
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();
@@ -179,30 +179,30 @@ public class SnapshotTest {
         n2Stack.addAll(n2Messages.reversed());
 
         //event
-        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggieri:0")); //snapshotStarter
-        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggioggi:0")); //n1
-        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggidomani:0")); //n2
+        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggieri:"+port)); //snapshotStarter
+        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggioggi:"+port)); //n1
+        assertDoesNotThrow(() -> EventsBroker.createEventChannel("friggidomani:"+port)); //n2
 
-        socketEmulator("friggieri",0,snapshotStarterStack.pop());
-        socketEmulator("friggieri",0,snapshotStarterStack.pop()); //get first token
+        socketEmulator("friggieri",port,snapshotStarterStack.pop());
+        socketEmulator("friggieri",port,snapshotStarterStack.pop()); //get first token
 
         Thread snapshotStarterThread = new Thread(() -> {
             while (!snapshotStarterStack.empty()){
-                assertDoesNotThrow(() -> socketEmulator("friggieri",0,snapshotStarterStack.pop()));
+                assertDoesNotThrow(() -> socketEmulator("friggieri",port,snapshotStarterStack.pop()));
             }
         });
         snapshotStarterThread.start();
 
         Thread n1Thread = new Thread(() -> {
             while (!n1Stack.empty()){
-                assertDoesNotThrow(() -> socketEmulator("friggioggi",0,n1Stack.pop()));
+                assertDoesNotThrow(() -> socketEmulator("friggioggi",port,n1Stack.pop()));
             }
         });
         n1Thread.start();
 
         Thread n2Thread = new Thread(() -> {
             while (!n2Stack.empty()){
-                assertDoesNotThrow(() -> socketEmulator("friggidomani",0,n2Stack.pop()));
+                assertDoesNotThrow(() -> socketEmulator("friggidomani",port,n2Stack.pop()));
             }
         });
         n2Thread.start();
@@ -212,7 +212,7 @@ public class SnapshotTest {
 
         Thread.sleep(1000);//to be sure the file is saved
 
-        SnapshotState savedSnapshotState = snapshotManger.getLastSnapshot();
+        SnapshotState savedSnapshotState = snapshotManger.getLastSnapshot(port);
         assertNotNull(savedSnapshotState);
         byte[] applicationState = savedSnapshotState.getApplicationState();
 
