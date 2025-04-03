@@ -164,7 +164,6 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        SystemOutTS.println("Hello, World!");
 
         // Ask the client if he wants to join a network or not
         SystemOutTS.print("Do you want to create a new network? [Y/N] ");
