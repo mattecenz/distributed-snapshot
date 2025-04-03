@@ -24,10 +24,17 @@ We need both the library and the application.
 * decide the distributed application for the testing purpose
 * start designing the library by thinking about everything it needs to do
 
-## TABLE OF ASSIGNMENTS:
 
-| WORK | Carlo | MatteoB | MatteoC |
-| ---- | ----- | ------- | --------|
-| Public Interface | x | x | x |
-| Application | x | x | x |
-| Corner cases | x | x | x |
+
+| FEATURE | Implemented | Tested | 
+| ---- | ----- | ------- | 
+| Join procedure | :green_circle: | :green_circle: | 
+| Send msg | :green_circle: | :green_circle: |
+| Exit procedure | :orange_circle: (partially implemented) | :red_circle: |
+| Ping pong | :green_circle: | :red_circle: |
+| Ping pong fail reaction | :red_circle: | :red_circle: |
+| Snapshot procedure | :green_circle: | :red_circle: |
+| Snapshot procedure reset | :red_circle: | :red_circle: |
+
+
+
