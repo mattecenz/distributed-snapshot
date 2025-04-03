@@ -7,27 +7,33 @@ import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.Socket;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
-/*public class RoutingTableTest {
+public class RoutingTableTest {
 
     private RoutingTable routingTable;
     private ClientSocketHandler socketHandler;
 
     @Mock
     Socket socket;
+    @Mock
+    OutputStream out;
 
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         // Inizializza una nuova tabella di routing prima di ogni test
         routingTable = new RoutingTable();
 
         MockitoAnnotations.openMocks(this);
 
-
+        // Mock del comportamento di getOutputStream()
+        when(socket.getOutputStream()).thenReturn(out);
     }
 
     @Test
@@ -120,4 +126,4 @@ import static org.junit.jupiter.api.Assertions.*;
     }
 
 
-}*/
+}
