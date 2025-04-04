@@ -251,6 +251,11 @@ public class SnapshotTest {
         public <T extends Serializable> T getApplicationState() {
             return (T) state;
         }
+
+        @Override
+        public void exitNotify(String ip, int port) {
+            //do nothing
+        }
     }
 
     private static class ExampleApplicationLayerState implements Serializable {

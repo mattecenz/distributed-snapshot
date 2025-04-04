@@ -25,6 +25,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
@@ -404,6 +405,7 @@ public class ConnectionManager {
 
                 //TODO send to anchor node only isn't enough, discuss how to avoid message loops
             }
+            JavaDistributedSnapshot.getInstance().applicationExitNotify(handler.getRemoteNodeName());
         // TODO: explicit exceptions ? Which is this one ?
         } catch (RoutingTableNodeNotPresentException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "We should not be here, a node not present in the routing table send an exit", e);
