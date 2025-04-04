@@ -615,7 +615,8 @@ public class ConnectionManager {
                 try {
                     this.ackHandler.removeAckId(m.getSequenceNumber());
                 } catch (AckHandlerAlreadyRemovedException e) {
-                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
+                    LoggerManager.getInstance().mutableInfo("Ack already removed from the ack map", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
+                    // LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
                 }
             }
             case MESSAGE_PINGPONG -> {
