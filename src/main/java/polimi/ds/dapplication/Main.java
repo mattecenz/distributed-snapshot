@@ -63,7 +63,7 @@ public class Main {
         StringMessage sm = new StringMessage(message);
 
         try {
-            JavaDistributedSnapshot.getInstance().sendMessage(sm, false, ip, port);
+            JavaDistributedSnapshot.getInstance().sendMessage(sm, ip, port);
         } catch (IOException e) {
             System.err.println("The library threw an IOException: " + e.getMessage());
         }
@@ -71,7 +71,9 @@ public class Main {
 
     private static void applicationLoop(){
 
-        while(true){
+        boolean finished = false;
+
+        while(!finished){
             // send a message to a certain node
 
             SystemOutTS.print("Input the command you want to run:");
@@ -90,20 +92,28 @@ public class Main {
                         } catch (JavaDSException e) {
                             System.err.println("The library threw a JavaDSException: " + e.getMessage());
                         }
-                        break;
+                        finished=true;
                     }
                     case "snapshot" ->{
-                        // TODO
-                        SystemOutTS.println("Stay tuned, this will be implemented in the next version :)");
+                        // Is there something else to do ? idk
+                        JavaDistributedSnapshot.getInstance().startNewSnapshot();
                     }
                     case "surprise" ->{
                         surprise();
                     }
+                    case "history" ->{
+                        SystemOutTS.println("Full history of messages received: ");
+                        for(String m: appState.getMessageHistory()) {
+                            // NB: this is not a synchronized operation, so something weird can potentially happen
+                            SystemOutTS.println(m);
+                        }
+                    }
                     case "help" -> {
                         SystemOutTS.println("All commands are: \n" +
-                                "msg:\t send a message to a user of the network \n" +
-                                "exit:\t exit the network and the program \n" +
+                                "msg:\t\t send a message to a user of the network \n" +
+                                "exit:\t\t exit the network and the program \n" +
                                 "snapshot:\t manually start a snapshot \n" +
+                                "history:\t list all received messages \n" +
                                 "surprise:\t are you brave enough to discover it? \n"+
                                 "");
                     }
@@ -122,11 +132,11 @@ public class Main {
 
     private static void joinNetwork(){
         SystemOutTS.print("Enter the port you want to open your connection: ");
-        int nPort = scanner.nextInt();
+        int myPort = scanner.nextInt();
         scanner.nextLine();
 
         // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(nPort, appUtility);
+        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
 
         SystemOutTS.print("Enter ip of the node you want to connect to: ");
         String ip = retryInput(regexIp);
@@ -154,11 +164,11 @@ public class Main {
     private static void createNetwork(){
 
         SystemOutTS.print("Enter port of the client you want to create: ");
-        int port = scanner.nextInt();
+        int myPort = scanner.nextInt();
         scanner.nextLine();
 
         // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(port, appUtility);
+        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
 
         applicationLoop();
     }

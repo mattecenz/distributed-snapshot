@@ -11,7 +11,7 @@ public class AppState implements Serializable {
         this.messageHistory = new ArrayList<>();
     }
 
-    public void appendMessage(String msg){
+    public synchronized void appendMessage(String msg){
         this.messageHistory.add(msg);
     }
 

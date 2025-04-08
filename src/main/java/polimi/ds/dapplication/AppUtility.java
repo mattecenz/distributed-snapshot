@@ -16,6 +16,7 @@ public class AppUtility implements ApplicationLayerInterface {
     // TODO: can this warning cause issues ?
     @Override
     public AppState getApplicationState() {
+        SystemOutTS.print("Collecting state of the application. ");
         return Main.getAppState();
     }
 
@@ -30,6 +31,8 @@ public class AppUtility implements ApplicationLayerInterface {
             case MESSAGE_STRING -> {
                 StringMessage sm = (StringMessage) m;
                 SystemOutTS.println("Somebody sent a message : " + sm.getMessage());
+                // Add the message to the state
+                Main.getAppState().appendMessage(sm.getMessage());
             }
             case MESSAGE_NOT_IMPLEMENTED -> {
                 System.err.println("Received message not implemented");
