@@ -3,6 +3,7 @@ package polimi.ds.dsnapshot.Connection;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.IOException;
@@ -92,6 +93,9 @@ public class UnNamedSocketHandler implements Runnable{
                         this.connectionManager.receiveNewDirectConnectionMessage((DirectConnectionMsg) m, this);
                         finished=true;
                     }
+                    case MESSAGE_ADOPTION_REQUEST ->{
+                        this.connectionManager.receiveAdoptionOrJoinRequest((DirectConnectionMsg) m, this);
+                    }
                     case null, default -> {
                         LoggerManager.instanceGetLogger().log(Level.WARNING, "Received a message which is not a join, do not do nothing. ");
                     }
@@ -102,6 +106,9 @@ public class UnNamedSocketHandler implements Runnable{
                 // TODO: what to do ?
             }catch (ClassNotFoundException e){
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
+                // TODO: what to do ?
+            } catch (RoutingTableNodeAlreadyPresentException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "RoutingTableNodeAlreadyPresentException", e);
                 // TODO: what to do ?
             }
         }

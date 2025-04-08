@@ -6,7 +6,7 @@ import re
 
 verify = True
 
-local_ip = "192.168.178.23"
+local_ip = "192.168.178.21"
 
 log_path = "./logOutput/"
 
@@ -25,7 +25,7 @@ tasks = [
     Task(["n","3000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 3"],3000,{"ciao sono 5","ciao sono 4","ciao sono 6"}),
     Task(["n","5000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 5","/msg",local_ip,"3000","ciao sono 5"],5000,{"ciao sono 4","ciao sono 7"}),
     Task(["n","4000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 4","/msg",local_ip,"5000","ciao sono 4"],4000,{"ciao sono 7","ciao sono 6"}),
-    Task(["n","7000",local_ip,"5000","/msg",local_ip,"5000","ciao sono 7","/msg",local_ip,"2000","ciao sono 7","/msg",local_ip,"4000","ciao sono 7"],7000,{}),
+    Task(["n","7000",local_ip,"5000","/msg",local_ip,"5000","ciao sono 7","/msg",local_ip,"2000","ciao sono 7","/msg",local_ip,"4000","ciao sono 7","/exit"],7000,{}),
     Task(["n","6000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 6","/msg",local_ip,"4000","ciao sono 6"],6000,{})
 ]
 
@@ -113,6 +113,8 @@ def task_handler(cmd,task, testVerify):
         print(f"start verify {task.port}")
         
         for line in stdout.split("\n"):
+            if "A node has left the network:" in line:
+                print(f"Exit message received from {task.port}: {line.strip()}")
             if "ciao sono" in line:
                 print(f"Messaggio ricevuto da {task.port}: {line.strip()}")
                 match = re.search(r"(ciao sono \d+)", line.strip())

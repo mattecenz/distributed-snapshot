@@ -41,7 +41,7 @@ public class SpanningTree {
         children.add(newChild);
     }
 
-    protected void RemoveChild(ClientSocketHandler child) throws SpanningTreeException {
+    protected void removeChild(ClientSocketHandler child) throws SpanningTreeException {
         LoggerManager.getInstance().mutableInfo("child removed from the spanning tree: " + child.getRemoteNodeName().getIP()+":"+child.getRemoteNodeName().getIP(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (!children.contains(child)) throw new SpanningTreeException("el already in the SPT");
         children.remove(child);

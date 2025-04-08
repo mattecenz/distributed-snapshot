@@ -5,7 +5,7 @@ snapshot:
 
 network:
   PingPongTimeout: 5000
-  directConnectionProbability: 0
+  directConnectionProbability: 1
   ackTimeout: 5000
 
 logger:
