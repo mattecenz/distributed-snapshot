@@ -10,6 +10,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -22,7 +23,6 @@ import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
@@ -31,8 +31,6 @@ import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
-
-import javax.security.auth.login.LoginException;
 
 /**
  * The connection manager consists of a TCP server socket who can receive connections.
@@ -53,7 +51,7 @@ public class ConnectionManager {
      * It is an atomic reference since all the operations in it must be run atomically to avoid inconsistencies
      */
     private final AtomicReference<RoutingTable> routingTable = new AtomicReference<>(new RoutingTable());
-    private final AtomicReference<SpanningTree> spt = new AtomicReference<>(new SpanningTree());
+    private final SpanningTree spt = new SpanningTree();
     private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
     /**
      * Reference to the handler of the acks
@@ -237,7 +235,7 @@ public class ConnectionManager {
             // If everything went well continue...
 
             // Add it as a parent in the spt
-            this.spt.get().setAnchorNodeHandler(handler);
+            this.spt.setAnchorNodeHandler(handler);
             // Add it to the active list of handlers
             this.handlerList.add(handler);
             // Add it to the routing table
@@ -377,11 +375,20 @@ public class ConnectionManager {
 
     // <editor-fold desc="Exit procedure">
     public synchronized void exitNetwork() throws IOException{
-        LoggerManager.getInstance().mutableInfo("exit", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
-        //TODO can cause null on anchor node if the exiting node is the ones who create the net
+        LoggerManager.getInstance().mutableInfo("Exit procedure started", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
 
         //reassign all child to the current anchor node of the exiting node
-        ClientSocketHandler handler = this.spt.get().getAnchorNodeHandler();
+        ClientSocketHandler handler;
+        try{
+            handler = this.spt.getAnchorNodeHandler();
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            if(this.spt.getChildren().isEmpty()){
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "Trying to exit the network with no parent and no children. Do nothing");
+                return;
+            }
+            // Assign the new owner of the network the first child.
+            handler = this.spt.getChildren().getFirst();
+        }
 
         //send exit message to all child
 
@@ -404,17 +411,16 @@ public class ConnectionManager {
             this.handlerList.remove(handler);
             handler.close();
 
-            ClientSocketHandler anchorNodeHandler = this.spt.get().getAnchorNodeHandler();
-            List<ClientSocketHandler> children = this.spt.get().getChildren();
+            ClientSocketHandler anchorNodeHandler = this.spt.getAnchorNodeHandler();
+            List<ClientSocketHandler> children = this.spt.getChildren();
 
             if(handler == anchorNodeHandler){
-                LoggerManager.getInstance().mutableInfo("exit received from anchor\n", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
-                // reassign anchor node
-                // There has to be a better way of doing it
-                this.spt.get().setAnchorNodeHandler(null);
+                LoggerManager.getInstance().mutableInfo("exit received from anchor", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
+                // Remove anchor node for the moment
+                this.spt.removeAnchorNodeHandler();
                 this.newAnchorNode(msg);
             }else if(children.contains(handler)){
-                this.spt.get().removeChild(handler);
+                this.spt.removeChild(handler);
             }
 
             this.sendExitNotify(handler.getRemoteNodeName(), Optional.empty());
@@ -423,7 +429,7 @@ public class ConnectionManager {
         } catch (RoutingTableNodeNotPresentException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the routing table send an exit", e);
             //TODO if ip not in routing table
-        } catch (SpanningTreeException e) {
+        } catch (SpanningTreeNoAnchorNodeException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the spanning tree send an exit", e);
             //TODO if ip not in routing table
         }
@@ -436,6 +442,14 @@ public class ConnectionManager {
      */
     private void newAnchorNode(ExitMsg msg) throws IOException {
         LoggerManager.getInstance().mutableInfo("trying to assign new anchor...", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
+
+        // Corner case: if the new node to connect to is myself do not do nothing. As I will become the new "owner of the network
+
+        if(msg.getNewAnchorName().equals(this.name)){
+            LoggerManager.getInstance().mutableInfo("I am the new owner of the network, do not need to connect to an handler.", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
+            return;
+        }
+
         ClientSocketHandler newAnchorNextHop;
         try {
             // Attempt to fetch the next hop in the routing table for the new anchor node.
@@ -453,23 +467,23 @@ public class ConnectionManager {
             LoggerManager.getInstance().mutableInfo("a direct connection with the new anchor is available", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
             newAnchorNextHop.startPingPong(true);
             //set new anchor node
-            this.spt.get().setAnchorNodeHandler(newAnchorNextHop);
+            this.spt.setAnchorNodeHandler(newAnchorNextHop);
             return;
         }
         LoggerManager.getInstance().mutableInfo("a direct connection with the new anchor is not available", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
         // No direct connection with the new anchor node; establish one.
-        newAnchorNodeEstablishDirectConnection(msg.getNewAnchorName());
+        this.newAnchorNodeEstablishDirectConnection(msg.getNewAnchorName());
     }
 
     private void newAnchorNodeEstablishDirectConnection(NodeName nodeName) throws IOException {
         AdoptionRequestMsg msg = new AdoptionRequestMsg(this.name);
-        joinNetwork(nodeName,msg);
+        this.joinNetwork(nodeName,msg);
     }
 
     private void sendExitNotify(NodeName nodeName, Optional<ClientSocketHandler> handler){
         LoggerManager.getInstance().mutableInfo("send exit notify", Optional.of(this.getClass().getName()), Optional.of("sendExitNotify"));
         ExitNotify exitNotify = new ExitNotify(nodeName);
-        forwardMessageAlongSPT(exitNotify, handler);
+        this.forwardMessageAlongSPT(exitNotify, handler);
     }
 
     private void receiveExitNotify(ExitNotify exitNotify, ClientSocketHandler handler){
@@ -526,11 +540,17 @@ public class ConnectionManager {
         boolean ok = true;
 
         // I can just check the references for simplicity
-        if(this.spt.get().getAnchorNodeHandler()!=null && (receivedHandler.isEmpty() || receivedHandler.get()!=this.spt.get().getAnchorNodeHandler())){
-            ok = this.spt.get().getAnchorNodeHandler().sendMessage(msg);
+        try {
+            ClientSocketHandler anchorHandler=this.spt.getAnchorNodeHandler();
+            if (receivedHandler.isEmpty() || receivedHandler.get() != anchorHandler) {
+                ok = anchorHandler.sendMessage(msg);
+            }
+        }catch(SpanningTreeNoAnchorNodeException e){
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Node has no associated handler for this node, do not forward along him", e);
         }
 
-        for(ClientSocketHandler h : this.spt.get().getChildren()){
+        // Forward along children
+        for(ClientSocketHandler h : this.spt.getChildren()){
             if (receivedHandler.isEmpty() || receivedHandler.get() != h) {
                 ok = h.sendMessage(msg) || ok;
             }
@@ -539,7 +559,9 @@ public class ConnectionManager {
         return ok;
     }
 
-    public void sendMessage(Message message, NodeName destinationNodeName){
+    public void sendMessage(Serializable content, NodeName destinationNodeName){
+
+        ApplicationMessage message = new ApplicationMessage(content, this.name, destinationNodeName);
 
         try {
             ClientSocketHandler handler = this.routingTable.get().getNextHop(destinationNodeName);
@@ -666,8 +688,8 @@ public class ConnectionManager {
                 PingPongMessage pingPongMessage = (PingPongMessage) m;
                 if(pingPongMessage.isFistPing()) {
                     try {
-                        this.spt.get().addChild(handler);
-                    } catch (SpanningTreeException e) {
+                        this.spt.addChild(handler);
+                    } catch (SpanningTreeChildAlreadyPresentException e) {
                         // todo: decide
                         LoggerManager.instanceGetLogger().log(Level.SEVERE, "Spanning tree exception", e);
                     }
@@ -676,11 +698,11 @@ public class ConnectionManager {
             }
             case MESSAGE_APP -> {
                 ApplicationMessage app = (ApplicationMessage)m;
-                if(app.getApplicationName().equals(this.name)) {
+                if(app.getReceiver().equals(this.name)) {
                     Event messageInputChannel = handler.getMessageInputChannel();
                     messageInputChannel.publish(m);
                 }else{
-                    this.sendMessage(m,app.getApplicationName());
+                    this.sendMessage(m,app.getReceiver());
                 }
             }
             case MESSAGE_DISCOVERY -> {
@@ -773,7 +795,7 @@ public class ConnectionManager {
     }
 
     synchronized public SpanningTree getSpt(){
-        return spt.get();
+        return this.spt;
     }
     // </editor-fold>
 }
