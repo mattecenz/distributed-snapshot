@@ -25,6 +25,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
+import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
@@ -366,6 +367,7 @@ public class ConnectionManager {
 
     // <editor-fold desc="Exit procedure">
     public synchronized void exitNetwork() throws IOException{
+        LoggerManager.getInstance().mutableInfo("exit", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
         //TODO can cause null on anchor node if the exiting node is the ones who create the net
 
         //reassign all child to the current anchor node of the exiting node
@@ -384,7 +386,9 @@ public class ConnectionManager {
     }
 
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
+        LoggerManager.getInstance().mutableInfo("receive exit", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
         try {
+            //todo stop ping pong
             this.routingTable.get().removePath(handler.getRemoteNodeName());
             this.routingTable.get().removeAllIndirectPath(handler);
             handler.close();
@@ -393,6 +397,7 @@ public class ConnectionManager {
 
 
             if(handler == anchorNodeHandler){
+                LoggerManager.getInstance().mutableInfo("exit received from anchor\n", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
                 //reassign anchor node
                 // There has to be a better way of doing it
                 this.spt.get().setAnchorNodeHandler(null);
@@ -404,7 +409,8 @@ public class ConnectionManager {
 
                 //TODO send to anchor node only isn't enough, discuss how to avoid message loops
             }
-        // TODO: explicit exceptions ? Which is this one ?
+            JavaDistributedSnapshot.getInstance().applicationExitNotify(handler.getRemoteNodeName());
+
         } catch (RoutingTableNodeNotPresentException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "We should not be here, a node not present in the routing table send an exit", e);
             //TODO if ip not in routing table
@@ -417,11 +423,14 @@ public class ConnectionManager {
      * @param msg     the {@link ExitMsg} containing the IP and port of the new anchor node.
      */
     private void newAnchorNode(ExitMsg msg) throws IOException {
+        LoggerManager.getInstance().mutableInfo("trying to assign new anchor...", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
         ClientSocketHandler newAnchorNextHop;
         try {
             // Attempt to fetch the next hop in the routing table for the new anchor node.
             newAnchorNextHop = this.routingTable.get().getNextHop(msg.getNewAnchorName());
+            LoggerManager.getInstance().mutableInfo("the new anchor is a known node", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
         } catch (RoutingTableNodeNotPresentException e) {
+            LoggerManager.getInstance().mutableInfo("the new anchor is not a known node", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
             // No path to reach the new anchor node, establish a direct connection.
             this.joinNetwork(msg.getNewAnchorName());
             return;
@@ -429,18 +438,32 @@ public class ConnectionManager {
 
         // Check if there is already a direct connection with the new anchor node.
         if (newAnchorNextHop.getRemoteNodeName().equals(msg.getNewAnchorName())) {
+            LoggerManager.getInstance().mutableInfo("a direct connection with the new anchor is available", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
             //TODO: there is already a direct cnt between this node and the anchor -> start ping pong
             //set new anchor node
             this.spt.get().setAnchorNodeHandler(newAnchorNextHop);
             return;
         }
+        LoggerManager.getInstance().mutableInfo("a direct connection with the new anchor is not available", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
         // No direct connection with the new anchor node; establish one.
         this.joinNetwork(msg.getNewAnchorName());
     }
 
     private void sendExitNotify(NodeName nodeName){
+        LoggerManager.getInstance().mutableInfo("send exit notify", Optional.of(this.getClass().getName()), Optional.of("sendExitNotify"));
         ExitNotify exitNotify = new ExitNotify(nodeName);
         forwardMessageAlongSPT(exitNotify, Optional.empty());
+    }
+
+    private void receiveExitNotify(ExitNotify exitNotify){
+        LoggerManager.getInstance().mutableInfo("received exit notify", Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
+        try {
+            this.routingTable.get().removePath(exitNotify.getExitName());
+        } catch (RoutingTableNodeNotPresentException e) {
+            LoggerManager.getInstance().mutableInfo("received exit notify for unknown node", Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
+        }
+        JavaDistributedSnapshot.getInstance().applicationExitNotify(exitNotify.getExitName());
+        this.sendExitNotify(exitNotify.getExitName());
     }
 
     // </editor-fold>
@@ -596,7 +619,8 @@ public class ConnectionManager {
                 }
             }
             case MESSAGE_EXITNOTIFY -> {
-                //TODO: I think here update the routing table
+                ExitNotify exitNotify = (ExitNotify) m;
+                receiveExitNotify(exitNotify);
             }
             case MESSAGE_JOINFORWARD -> {
                 try {

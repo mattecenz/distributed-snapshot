@@ -73,6 +73,10 @@ public class JavaDistributedSnapshot{
         }
     }
 
+    public void applicationExitNotify(NodeName nodeName){
+        applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
+    }
+
     public void sendMessage(Serializable messageContent, boolean requireAck, String destinationIp, int destinationPort) throws IOException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
