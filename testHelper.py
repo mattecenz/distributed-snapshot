@@ -3,35 +3,64 @@ import time
 import threading
 import os
 import re
+import json
+import sys
 
 verify = True
 
-local_ip = "10.173.63.100"
+#local_ip = "10.169.155.239"
 
 log_path = "./logOutput/"
 
 
 class Task:
-    def __init__(self, input_data, port, expected_output):
+    def __init__(self, input_data, port, expected_output, sync_points=None):
         self.input = input_data
         self.port = port
         self.expected_output = expected_output
-    
-    def setLogStatus(self,logClean):
+        self.sync_points = sync_points or []  # Lista di indici di sincronizzazione
+        self.logClean = None
+
+    @staticmethod
+    def from_dict(data, local_ip):
+        input_data = replace_tokens(data['input'],local_ip,data['port'])
+        expected_output = replace_tokens(data['expected_output'],local_ip,data['port'])
+        
+        return Task(
+            input_data= input_data,
+            port= data['port'],
+            expected_output= expected_output,
+            sync_points= data.get('sync_points', [])
+        )
+
+    def setLogStatus(self, logClean):
         self.logClean = logClean
 
-tasks = [
-    Task(["y", "2000"],2000,{"ciao sono 3","ciao sono 5","ciao sono 7",local_ip+":7000"}),
-    Task(["n","3000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 3"],3000,{"ciao sono 5","ciao sono 4","ciao sono 6",local_ip+":7000"}),
-    Task(["n","5000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 5","/msg",local_ip,"3000","ciao sono 5"],5000,{"ciao sono 4","ciao sono 7",local_ip+":7000"}),
-    Task(["n","4000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 4","/msg",local_ip,"5000","ciao sono 4"],4000,{"ciao sono 7","ciao sono 6",local_ip+":7000"}),
-    Task(["n","7000",local_ip,"5000","/msg",local_ip,"5000","ciao sono 7","/msg",local_ip,"2000","ciao sono 7","/msg",local_ip,"4000","ciao sono 7","/exit"],7000,{}),
-    Task(["n","6000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 6","/msg",local_ip,"4000","ciao sono 6"],6000,{local_ip+":7000"})
-]
+def replace_tokens(string_list, local_ip, port):
+    """
+    Replace tokens <local_ip> and <exit-notify-received (port)> in a list of string.
+    """
+    updated_data = []
+    for item in string_list:
+        if "<local_ip>" in item:
+            item = item.replace("<local_ip>", local_ip)
+        # Sostituzione del token <exit-notify-received (port)>
+        match = re.search(r"<exit-notify-received \((\d+)\)>", item)
+        if match:
+            port = match.group(1)  # Estrae la porta dal token
+            item = item.replace(match.group(0), f"{local_ip}:{port}")  # Sostituisce il token con local_ip:por
+        updated_data.append(item)
+    return updated_data
 
 task_ready = 0
 
-def open_terminals_with_commands():
+def open_terminals_with_commands(tasks):
+    sync_lengths = [len(task.sync_points) for task in tasks]
+    if len(set(sync_lengths)) != 1:
+        print("Error: The tasks do not have the same number of synchronization points!")
+        print("Lengths found:", sync_lengths)
+        return  # Interrompi l'esecuzione se non sono coerenti
+
     for task in tasks:      
         thread = threading.Thread(target=task_handler, args=("java -jar target/untitled-1.0-SNAPSHOT-jar-with-dependencies.jar",task,verify))  # Add a comma to pass a tuple correctly
         thread.start()
@@ -43,6 +72,11 @@ def msg_received(task, msg):
     else: 
         print(f"unexpected msg received from  {task.port}: {msg}")
 
+def load_tasks_from_file(file_path, local_ip):
+    with open(file_path, 'r') as f:
+        tasks_data = json.load(f)
+    return [Task.from_dict(task_data, local_ip) for task_data in tasks_data]
+
 def final_test_check():
     print(f"task ready: {task_ready}\n")
     if(task_ready!=len(tasks)):
@@ -51,7 +85,7 @@ def final_test_check():
     test_correct=True
     for task in tasks:
         if(len(task.expected_output)!=0):
-            print(f"something went wrong with task {task.port}, {len(task.expected_output)} messages left")
+            print(f"something went wrong with task {task.port}, {len(task.expected_output)} messages left: {task.expected_output}")
             test_correct=False
         if(not task.logClean):
             print(f"test present severe exception in logs of node: {task.port}")
@@ -98,12 +132,21 @@ def task_handler(cmd,task, testVerify):
 
     input = task.input
     # Ciclo per inviare gli input dal nostro array
-    for user_input in input:
-        time.sleep(2)  # Pausa tra gli input per simulare una sequenza di comandi
-        #print(user_input)
-        # Scriviamo l'input nel terminale (stdin del processo)
+    for i, user_input in enumerate(input):
+        time.sleep(2)
+        #print(f"node: {task.port} input {user_input}")
         process.stdin.write(user_input + "\n")
-        process.stdin.flush()  # Assicura che l'input venga inviato al programma Java
+        process.stdin.flush()
+
+        if i in task.sync_points:
+            print(f"Task {task.port} reached sync point {i}, waiting...")
+            try:
+                sync_barrier.wait()
+                print(f"Task {task.port} passed sync point {i}.")
+                task.sync_points.remove(i)  # Rimuovi il punto una volta sincronizzato
+            
+            except threading.BrokenBarrierError:
+                print(f"Barrier broken for task {task.port} at point {i}")
 
     print(f"end inputs for task {task.port}")
  
@@ -127,8 +170,6 @@ def task_handler(cmd,task, testVerify):
                     result = match.group(1)  # Prende solo "ciao sono"
                     msg_received(task, result)
 
-        
-
         logClean = not check_log_for_severe(log_path, f"DistributedSnapshotLog{task.port}.log")
         print(logClean)
         task.setLogStatus(logClean)
@@ -145,4 +186,14 @@ def task_handler(cmd,task, testVerify):
         print("stderr:", stderr)
 
 
-open_terminals_with_commands()
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python script.py <path_to_tasks_file> <local_ip>")
+        sys.exit(1)
+    
+    tasks_file_path = sys.argv[1]
+    local_ip = sys.argv[2]  # Get the local_ip from the command line argument
+    tasks = load_tasks_from_file(tasks_file_path, local_ip)
+    sync_barrier = threading.Barrier(len(tasks))
+
+    open_terminals_with_commands(tasks)
