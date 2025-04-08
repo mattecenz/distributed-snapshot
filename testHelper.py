@@ -6,7 +6,7 @@ import re
 
 verify = True
 
-local_ip = "192.168.178.21"
+local_ip = "10.173.63.100"
 
 log_path = "./logOutput/"
 
@@ -21,12 +21,12 @@ class Task:
         self.logClean = logClean
 
 tasks = [
-    Task(["y", "2000"],2000,{"ciao sono 3","ciao sono 5","ciao sono 7"}),
-    Task(["n","3000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 3"],3000,{"ciao sono 5","ciao sono 4","ciao sono 6"}),
-    Task(["n","5000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 5","/msg",local_ip,"3000","ciao sono 5"],5000,{"ciao sono 4","ciao sono 7"}),
-    Task(["n","4000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 4","/msg",local_ip,"5000","ciao sono 4"],4000,{"ciao sono 7","ciao sono 6"}),
+    Task(["y", "2000"],2000,{"ciao sono 3","ciao sono 5","ciao sono 7",local_ip+":7000"}),
+    Task(["n","3000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 3"],3000,{"ciao sono 5","ciao sono 4","ciao sono 6",local_ip+":7000"}),
+    Task(["n","5000",local_ip,"2000","/msg",local_ip,"2000","ciao sono 5","/msg",local_ip,"3000","ciao sono 5"],5000,{"ciao sono 4","ciao sono 7",local_ip+":7000"}),
+    Task(["n","4000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 4","/msg",local_ip,"5000","ciao sono 4"],4000,{"ciao sono 7","ciao sono 6",local_ip+":7000"}),
     Task(["n","7000",local_ip,"5000","/msg",local_ip,"5000","ciao sono 7","/msg",local_ip,"2000","ciao sono 7","/msg",local_ip,"4000","ciao sono 7","/exit"],7000,{}),
-    Task(["n","6000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 6","/msg",local_ip,"4000","ciao sono 6"],6000,{})
+    Task(["n","6000",local_ip,"2000","/msg",local_ip,"3000","ciao sono 6","/msg",local_ip,"4000","ciao sono 6"],6000,{local_ip+":7000"})
 ]
 
 task_ready = 0
@@ -114,7 +114,12 @@ def task_handler(cmd,task, testVerify):
         
         for line in stdout.split("\n"):
             if "A node has left the network:" in line:
-                print(f"Exit message received from {task.port}: {line.strip()}")
+                #A node has left the network: 10.189.83.22:7000
+                match = re.search(r"(\d+\.\d+\.\d+\.\d+:\d+)", line.strip())
+                if match:
+                    result = match.group(1)
+                    print(f"Exit message received from {task.port}: {result}")
+                    msg_received(task, result)
             if "ciao sono" in line:
                 print(f"Messaggio ricevuto da {task.port}: {line.strip()}")
                 match = re.search(r"(ciao sono \d+)", line.strip())
