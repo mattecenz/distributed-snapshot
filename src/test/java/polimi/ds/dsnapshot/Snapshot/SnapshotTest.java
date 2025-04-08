@@ -22,6 +22,7 @@ import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
+import java.io.Serial;
 import java.io.Serializable;
 import java.net.Socket;
 import java.nio.file.*;
@@ -91,10 +92,10 @@ public class SnapshotTest {
 
         Thread.sleep(1000);//to be sure the file is saved
 
-        byte[] applicationState = snapshotManger.getLastSnapshot(0).getApplicationState();
+        Serializable applicationState = snapshotManger.getLastSnapshot(0).getApplicationState();
 
         assertDoesNotThrow(() -> {
-            ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            ExampleApplicationLayerState savedApplicationState = (ExampleApplicationLayerState) applicationState;
             System.out.println(savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
@@ -214,10 +215,10 @@ public class SnapshotTest {
 
         SnapshotState savedSnapshotState = snapshotManger.getLastSnapshot(port);
         assertNotNull(savedSnapshotState);
-        byte[] applicationState = savedSnapshotState.getApplicationState();
+        Serializable applicationState = savedSnapshotState.getApplicationState();
 
         assertDoesNotThrow(() -> {
-            ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            ExampleApplicationLayerState savedApplicationState = (ExampleApplicationLayerState) applicationState;
             System.out.println("saved snapshot state: " + savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
@@ -237,7 +238,7 @@ public class SnapshotTest {
             System.out.println("token received from channel: " + ip + ":" + port);
             snapshotManger.manageSnapshotToken("testS2", new NodeName(ip,port));
         }else {
-            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(message,new NodeName(ip,port),false));
+            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(message,new NodeName("test",1234),new NodeName(ip,port)));
         }
     }
     private static class ExampleApplicationInterface implements ApplicationLayerInterface {
