@@ -267,6 +267,7 @@ public class ConnectionManager {
             return;
         }
     }
+
     synchronized ClientSocketHandler receiveAdoptionOrJoinRequest(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) throws RoutingTableNodeAlreadyPresentException {
         LoggerManager.getInstance().mutableInfo("Join request received from node "+joinMsg.getJoinerName().getIP()+":"+joinMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
         // Create the new handler
@@ -560,9 +561,11 @@ public class ConnectionManager {
     }
 
     public void sendMessage(Serializable content, NodeName destinationNodeName){
-
         ApplicationMessage message = new ApplicationMessage(content, this.name, destinationNodeName);
+        this.forwardMessage(message, destinationNodeName);
+    }
 
+    private void forwardMessage(Message message, NodeName destinationNodeName){
         try {
             ClientSocketHandler handler = this.routingTable.get().getNextHop(destinationNodeName);
             handler.sendMessage(message);
@@ -702,7 +705,7 @@ public class ConnectionManager {
                     Event messageInputChannel = handler.getMessageInputChannel();
                     messageInputChannel.publish(m);
                 }else{
-                    this.sendMessage(m,app.getReceiver());
+                    this.forwardMessage(m,app.getReceiver());
                 }
             }
             case MESSAGE_DISCOVERY -> {

@@ -1,5 +1,6 @@
 package polimi.ds.dsnapshot.Connection;
 
+import polimi.ds.dsnapshot.Connection.Messages.Exit.AdoptionRequestMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
@@ -94,7 +95,8 @@ public class UnNamedSocketHandler implements Runnable{
                         finished=true;
                     }
                     case MESSAGE_ADOPTION_REQUEST ->{
-                        this.connectionManager.receiveAdoptionOrJoinRequest((DirectConnectionMsg) m, this);
+                        this.connectionManager.receiveAdoptionOrJoinRequest((AdoptionRequestMsg) m, this);
+                        finished=true;
                     }
                     case null, default -> {
                         LoggerManager.instanceGetLogger().log(Level.WARNING, "Received a message which is not a join, do not do nothing. ");
