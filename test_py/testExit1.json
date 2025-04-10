@@ -1,26 +1,26 @@
 [
     {
-        "input": ["n","2000","/msg","<local_ip>","5000'","ciao sono 2","/exit"],
+        "input": ["y","2000","/msg","<local_ip>","3000","ciao sono 2","/msg","<local_ip>","5000","ciao sono 2","/exit"],
         "port": 2000,
-        "expected_output": ["<exit-notify-received (3000)>","ciao sono 5"],
-        "sync_points": [1,5]
+        "expected_output": ["<exit-notify-received (3000)>","ciao sono 5","ciao sono 4"],
+        "sync_points": [1,2,10]
     },
     {
-        "input": ["n","3000","<local_ip>","2000","/exit"],
+        "input": ["n","3000","<local_ip>","2000","/msg", "<local_ip>","4000","ciao sono 3","/exit"],
         "port": 3000,
-        "expected_output": [],
-        "sync_points": [3,4]
+        "expected_output": ["ciao sono 2"],
+        "sync_points": [3,4,8]
     },
     {
-        "input": ["n","4000","<local_ip>","2000","/msg","<local_ip>","2000","ciao sono 5"],
-        "port": 5000,
-        "expected_output": ["<exit-notify-received (3000)>","<exit-notify-received (2000)>","ciao sono 4"],
-        "sync_points": [3,4]
-    },
-    {
-        "input": ["n","5000","<local_ip>","4000","/msg","<local_ip>","5000","ciao sono 4"],
+        "input": ["n","4000","<local_ip>","2000","/msg","<local_ip>","2000","ciao sono 4","/msg","<local_ip>","5000","ciao sono 4"],
         "port": 4000,
-        "expected_output": ["<exit-notify-received (3000)>","ciao sono 2","<exit-notify-received (2000)>"],
-        "sync_points": [3,4]
+        "expected_output": ["<exit-notify-received (3000)>","<exit-notify-received (2000)>","ciao sono 3"],
+        "sync_points": [3,4,8]
+    },
+    {
+        "input": ["n","5000","<local_ip>","4000","/msg","<local_ip>","2000","ciao sono 5"],
+        "port": 5000,
+        "expected_output": ["<exit-notify-received (3000)>","ciao sono 2","<exit-notify-received (2000)>","ciao sono 4"],
+        "sync_points": [0,4,7]
     }
 ]

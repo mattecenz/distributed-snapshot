@@ -128,8 +128,7 @@ public class ConnectionManager {
     // TODO: discuss a bit if every message needs the destination ip:port
     // TODO: there is a problem, the MessageAck is a different class than the Message
     boolean sendMessageSynchronized(Message m, String ip, int port){
-
-        LoggerManager.getInstance().mutableInfo("Sending a message to "+ip+":"+port+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+        LoggerManager.getInstance().mutableInfo("Sending a message"+ m.getClass().getName() +" to "+ip+":"+port+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
 
         NodeName destNode = new NodeName(ip, port);
 
@@ -149,6 +148,7 @@ public class ConnectionManager {
     }
 
     protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
+        LoggerManager.getInstance().mutableInfo("Sending a message"+ m.getClass().getName() +" to "+handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort()+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         LoggerManager.getInstance().mutableInfo("Preparing for receiving an ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
@@ -410,35 +410,40 @@ public class ConnectionManager {
 
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         LoggerManager.getInstance().mutableInfo("receive exit", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
-        try {
+        try{
             handler.stopPingPong();
             this.routingTable.get().removePath(handler.getRemoteNodeName());
-            this.routingTable.get().removeAllIndirectPath(handler);
-            this.handlerList.remove(handler);
-            handler.close();
+        }catch (RoutingTableNodeNotPresentException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the routing table send an exit", e);
+            //TODO if ip not in routing table
+        }
 
+        this.routingTable.get().removeAllIndirectPath(handler);
+        this.handlerList.remove(handler);
+        handler.close();
+
+        try {
             ClientSocketHandler anchorNodeHandler = this.spt.getAnchorNodeHandler();
             List<ClientSocketHandler> children = this.spt.getChildren();
 
             if(handler == anchorNodeHandler){
                 LoggerManager.getInstance().mutableInfo("exit received from anchor", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
                 // Remove anchor node for the moment
-                this.spt.removeAnchorNodeHandler();
+
+                    this.spt.removeAnchorNodeHandler();
+
                 this.newAnchorNode(msg);
             }else if(children.contains(handler)){
                 this.spt.removeChild(handler);
             }
-
-            this.sendExitNotify(handler.getRemoteNodeName(), Optional.empty());
-            JavaDistributedSnapshot.getInstance().applicationExitNotify(handler.getRemoteNodeName());
-
-        } catch (RoutingTableNodeNotPresentException e) {
-            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the routing table send an exit", e);
-            //TODO if ip not in routing table
-        } catch (SpanningTreeNoAnchorNodeException e) {
+        }catch (SpanningTreeNoAnchorNodeException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the spanning tree send an exit", e);
-            //TODO if ip not in routing table
+            //TODO if no anchor node exist -> if leader
         }
+
+        this.sendExitNotify(handler.getRemoteNodeName(), Optional.empty());
+        JavaDistributedSnapshot.getInstance().applicationExitNotify(handler.getRemoteNodeName());
+
     }
     /**
      * Handles the assignment of a new anchor node when the current anchor node exits the network.

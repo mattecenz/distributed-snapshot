@@ -51,7 +51,7 @@ public class PingPongManager {
             }
         } catch (InterruptedException e) {
             //todo: manage exception
-            LoggerManager.instanceGetLogger().log(Level.SEVERE, "[PingPongManager] error while waiting for pong ", e);
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "[PingPongManager] error while waiting for pong ", e);
             return;
         } catch (ConnectionException e){
             pingFail(pingPongMessage.getSequenceNumber());
