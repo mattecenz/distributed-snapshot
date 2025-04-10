@@ -144,6 +144,7 @@ def task_handler(cmd,task, testVerify):
                 sync_barrier.wait()
                 print(f"Task {task.port} passed sync point {i}.")
                 task.sync_points.remove(i)  # Rimuovi il punto una volta sincronizzato
+                time.sleep(2)
             
             except threading.BrokenBarrierError:
                 print(f"Barrier broken for task {task.port} at point {i}")

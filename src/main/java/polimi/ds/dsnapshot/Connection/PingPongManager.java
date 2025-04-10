@@ -7,6 +7,7 @@ import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 
 
@@ -14,14 +15,14 @@ public class PingPongManager {
     private final ClientSocketHandler handler;
     private final ConnectionManager manager;
     private final int pingPongTimeout = Config.getInt("network.PingPongTimeout");
-
+    ExecutorService pingPongExecutor;
 
     protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean isFirstPing) {
         LoggerManager.getInstance().mutableInfo("start ping pong with: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("PingPongManager"));
         manager = connectionManager;
         this.handler = handler;
         //send first ping
-        ThreadPool.submit(() -> {sendFirstPing(isFirstPing);});
+        pingPongExecutor = ThreadPool.submit(() -> {sendFirstPing(isFirstPing);});
     }
 
     private void sendFirstPing(boolean isFirstPing){
@@ -56,6 +57,11 @@ public class PingPongManager {
             pingFail(pingPongMessage.getSequenceNumber());
             return;
         }
+    }
+
+    synchronized public void stopPingPong(){
+        LoggerManager.getInstance().mutableInfo("[PingPongManager] stop ping pong", Optional.of(this.getClass().getName()), Optional.of("stopPingPong"));
+        pingPongExecutor.shutdownNow();
     }
 
     private void pingFail(int sequenceNumber){

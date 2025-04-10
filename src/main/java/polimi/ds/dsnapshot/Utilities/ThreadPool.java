@@ -6,7 +6,8 @@ import java.util.concurrent.Executors;
 public class ThreadPool {
     private final static ExecutorService executor = Executors.newCachedThreadPool();
 
-    public synchronized static void submit(Runnable r) {
+    public synchronized static ExecutorService  submit(Runnable r) {
         executor.submit(r);
+        return executor;
     }
 }

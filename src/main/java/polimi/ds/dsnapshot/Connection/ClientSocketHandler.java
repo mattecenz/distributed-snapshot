@@ -241,5 +241,9 @@ public class ClientSocketHandler implements Runnable{
         pingPongManager = new PingPongManager(manager,this, isFirstPing);
     }
 
+    protected void stopPingPong(){
+        pingPongManager.stopPingPong();
+    }
+
 
 }

@@ -378,10 +378,15 @@ public class ConnectionManager {
     public synchronized void exitNetwork() throws IOException{
         LoggerManager.getInstance().mutableInfo("Exit procedure started", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
 
+        //stop children ping pong
+        for(ClientSocketHandler h : this.spt.getChildren()){
+            h.stopPingPong();
+        }
         //reassign all child to the current anchor node of the exiting node
         ClientSocketHandler handler;
         try{
             handler = this.spt.getAnchorNodeHandler();
+            handler.stopPingPong(); //stop anchor ping pong
         } catch (SpanningTreeNoAnchorNodeException e) {
             if(this.spt.getChildren().isEmpty()){
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "Trying to exit the network with no parent and no children. Do nothing");
@@ -406,7 +411,7 @@ public class ConnectionManager {
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         LoggerManager.getInstance().mutableInfo("receive exit", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
         try {
-            //todo stop ping pong
+            handler.stopPingPong();
             this.routingTable.get().removePath(handler.getRemoteNodeName());
             this.routingTable.get().removeAllIndirectPath(handler);
             this.handlerList.remove(handler);
