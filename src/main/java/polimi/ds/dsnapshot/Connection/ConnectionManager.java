@@ -380,7 +380,7 @@ public class ConnectionManager {
 
         //stop children ping pong
         for(ClientSocketHandler h : this.spt.getChildren()){
-            h.stopPingPong();
+           h.stopPingPong();
         }
         //reassign all child to the current anchor node of the exiting node
         ClientSocketHandler handler;
@@ -400,16 +400,20 @@ public class ConnectionManager {
 
         ExitMsg m = new ExitMsg(handler.getRemoteNodeName());
         this.forwardMessageAlongSPT(m, Optional.empty());
+        LoggerManager.getInstance().mutableInfo("send exit msg on spt", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
 
         //clear handler list
         this.unNamedHandlerList.clear();
+        LoggerManager.getInstance().mutableInfo("clear unnamed list during exit", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
+
 
         //clear routing table
         this.routingTable.get().clearTable();
+        LoggerManager.getInstance().mutableInfo("clear routing table during exit", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
     }
 
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
-        LoggerManager.getInstance().mutableInfo("receive exit", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
+        LoggerManager.getInstance().mutableInfo("receive exit from: " +handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
         try{
             handler.stopPingPong();
             this.routingTable.get().removePath(handler.getRemoteNodeName());
@@ -424,7 +428,6 @@ public class ConnectionManager {
 
         try {
             ClientSocketHandler anchorNodeHandler = this.spt.getAnchorNodeHandler();
-            List<ClientSocketHandler> children = this.spt.getChildren();
 
             if(handler == anchorNodeHandler){
                 LoggerManager.getInstance().mutableInfo("exit received from anchor", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
@@ -433,12 +436,15 @@ public class ConnectionManager {
                     this.spt.removeAnchorNodeHandler();
 
                 this.newAnchorNode(msg);
-            }else if(children.contains(handler)){
-                this.spt.removeChild(handler);
             }
         }catch (SpanningTreeNoAnchorNodeException e) {
-            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node not present in the spanning tree send an exit", e);
+            LoggerManager.getInstance().mutableInfo("exit received from the network first node", Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
             //TODO if no anchor node exist -> if leader
+        }
+
+        List<ClientSocketHandler> children = this.spt.getChildren();
+        if(children.contains(handler)){
+            this.spt.removeChild(handler);
         }
 
         this.sendExitNotify(handler.getRemoteNodeName(), Optional.empty());
@@ -498,7 +504,7 @@ public class ConnectionManager {
     }
 
     private void receiveExitNotify(ExitNotify exitNotify, ClientSocketHandler handler){
-        LoggerManager.getInstance().mutableInfo("received exit notify", Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
+            LoggerManager.getInstance().mutableInfo("received exit notify for node: " +exitNotify.getExitName().getIP()+ ":" +exitNotify.getExitName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
         try {
             this.routingTable.get().removePath(exitNotify.getExitName());
         } catch (RoutingTableNodeNotPresentException e) {

@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 
 
@@ -15,14 +16,14 @@ public class PingPongManager {
     private final ClientSocketHandler handler;
     private final ConnectionManager manager;
     private final int pingPongTimeout = Config.getInt("network.PingPongTimeout");
-    ExecutorService pingPongExecutor;
+    Future<?> pingPongFuture;
 
     protected PingPongManager(ConnectionManager connectionManager ,ClientSocketHandler handler, boolean isFirstPing) {
         LoggerManager.getInstance().mutableInfo("start ping pong with: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("PingPongManager"));
         manager = connectionManager;
         this.handler = handler;
         //send first ping
-        pingPongExecutor = ThreadPool.submit(() -> {sendFirstPing(isFirstPing);});
+        pingPongFuture = ThreadPool.submitAndReturnFuture(() -> {sendFirstPing(isFirstPing);});
     }
 
     private void sendFirstPing(boolean isFirstPing){
@@ -44,24 +45,25 @@ public class PingPongManager {
         LoggerManager.getInstance().mutableInfo("start periodic ping", Optional.of(this.getClass().getName()), Optional.of("sendPing"));
         PingPongMessage pingPongMessage = null;
         try {
-            while (true) {
+            while (!Thread.currentThread().isInterrupted() && !pingPongFuture.isCancelled()) {
                 pingPongMessage = new PingPongMessage(false);
                 manager.sendMessageSynchronized(pingPongMessage, handler);
                 Thread.sleep(pingPongTimeout);
             }
         } catch (InterruptedException e) {
             //todo: manage exception
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "[PingPongManager] error while waiting for pong ", e);
+            LoggerManager.getInstance().mutableInfo( "[PingPongManager] ping pong with node: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort()+ " has been stopped throwing InterruptedException", Optional.of(this.getClass().getName()), Optional.of("sendPing"));
             return;
         } catch (ConnectionException e){
             pingFail(pingPongMessage.getSequenceNumber());
             return;
         }
+        LoggerManager.getInstance().mutableInfo( "[PingPongManager] ping pong with node: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort()+ " has been stopped without exception", Optional.of(this.getClass().getName()), Optional.of("sendPing"));
     }
 
     synchronized public void stopPingPong(){
-        LoggerManager.getInstance().mutableInfo("[PingPongManager] stop ping pong", Optional.of(this.getClass().getName()), Optional.of("stopPingPong"));
-        pingPongExecutor.shutdownNow();
+        boolean c = pingPongFuture.cancel(true);
+        LoggerManager.getInstance().mutableInfo("[PingPongManager] stop ping pong "+c , Optional.of(this.getClass().getName()), Optional.of("stopPingPong"));
     }
 
     private void pingFail(int sequenceNumber){
