@@ -41,6 +41,7 @@ public class SnapshotTest {
     private SnapshotManager snapshotManger;
 
 
+
     @BeforeEach
     public void setup() {
         LoggerManager.start(104);
@@ -50,6 +51,7 @@ public class SnapshotTest {
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
         javaDistributedSnapshot.setConnectionManager(connectionManagerMock);
 
+
         snapshotManger = new SnapshotManager(connectionManagerMock);
         System.out.println(" ");
 
@@ -58,6 +60,9 @@ public class SnapshotTest {
 
     @Test
     public void SnapshotNoMessagesTest() throws JavaDSException, InterruptedException {
+        NodeName name = new NodeName("friggeri",0);
+        when(connectionManagerMock.getName()).thenReturn(name);
+
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();
         exampleApplicationInterface.state.i = rand.nextInt();
@@ -150,6 +155,9 @@ public class SnapshotTest {
 
 
     private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, JavaDSException, EventException {
+        NodeName name = new NodeName("friggeri",port);
+        when(connectionManagerMock.getName()).thenReturn(name);
+
         //application state
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();

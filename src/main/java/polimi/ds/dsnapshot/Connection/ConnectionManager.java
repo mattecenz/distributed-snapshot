@@ -88,6 +88,10 @@ public class ConnectionManager {
         LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+thisIP+":"+port , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
 
+    public NodeName getName() {
+        return name;
+    }
+
     public void start(){
         LoggerManager.getInstance().mutableInfo("Preparing the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
@@ -540,11 +544,10 @@ public class ConnectionManager {
                 .mapToObj(CHARACTERS::charAt)
                 .map(String::valueOf)
                 .collect(Collectors.joining());
-
         TokenMessage tokenMessage = new TokenMessage(snapshotCode, name);
-
+        String tokenName = snapshotCode+"-"+name.getIP()+"-"+name.getPort();
         //start snapshot locally
-        snapshotManager.manageSnapshotToken(snapshotCode,name);
+        snapshotManager.manageSnapshotToken(tokenName,name);
 
         //notify the rest of the network
         for(ClientSocketHandler h : this.handlerList){
@@ -798,8 +801,9 @@ public class ConnectionManager {
                 }
             }
             case SNAPSHOT_TOKEN -> {
+                LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
                 TokenMessage tokenMessage = (TokenMessage) m;
-                String tokenName = tokenMessage.getSnapshotId()+"_"+tokenMessage.getSnapshotCreatorName().getIP()+"_"+tokenMessage.getSnapshotCreatorName().getPort();
+                String tokenName = tokenMessage.getSnapshotId()+"-"+tokenMessage.getSnapshotCreatorName().getIP()+"-"+tokenMessage.getSnapshotCreatorName().getPort();
 
                 if (snapshotManager.manageSnapshotToken(tokenName, handler.getRemoteNodeName())) {
                     this.forwardToken(tokenMessage, handler);

@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.time.format.DateTimeFormatter;
 import java.util.logging.Level;
@@ -47,6 +48,7 @@ public class Snapshot {
 
         // File name & path
         this.snapshotPath += snapshotCode + "-" + hostPort + "_" + timestampStr + ".bin";
+        LoggerManager.getInstance().mutableInfo("starting snapshot with name " + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
         JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
         ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
@@ -100,6 +102,7 @@ public class Snapshot {
                 ObjectOutputStream oos = new ObjectOutputStream(fos);
                 oos.writeObject(snapshotState);
             }
+            LoggerManager.getInstance().mutableInfo("snapshot saved in main memory" + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("endSnapshot"));
         } catch (Exception e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "failed to serialize snapshot file: " + snapshotPath, e);
             //todo decide
