@@ -215,7 +215,7 @@ public class ClientSocketHandler implements Runnable{
             }
 
             try {
-                LoggerManager.getInstance().mutableInfo("Sending message: " + m.getClass().getName(), Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
+                LoggerManager.getInstance().mutableInfo("Sending message: " + m.getClass().getName() + " to: "+remoteNodeName.getIP() +": " + remoteNodeName.getPort(), Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();

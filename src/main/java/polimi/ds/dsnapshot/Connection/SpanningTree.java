@@ -97,7 +97,7 @@ public class SpanningTree {
      * @throws SpanningTreeChildNotPresentException if no child is present in the current list of children
      */
     protected synchronized void removeChild(ClientSocketHandler child) throws SpanningTreeChildNotPresentException {
-        LoggerManager.getInstance().mutableInfo("child removed from the spanning tree: " + child.getRemoteNodeName().getIP()+":"+child.getRemoteNodeName().getIP(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
+        LoggerManager.getInstance().mutableInfo("child removed from the spanning tree: " + child.getRemoteNodeName().getIP()+":"+child.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (!this.children.contains(child)) throw new SpanningTreeChildNotPresentException();
         this.children.remove(child);
     }

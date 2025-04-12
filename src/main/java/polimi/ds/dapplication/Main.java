@@ -176,7 +176,7 @@ public class Main {
     public static void main(String[] args) {
 
         // Ask the client if he wants to join a network or not
-        SystemOutTS.print("Do you want to create a new network? [Y/N] ");
+        SystemOutTS.print("Do you want to create a new network? [y/N] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){

@@ -148,7 +148,7 @@ public class ConnectionManager {
     }
 
     protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
-        LoggerManager.getInstance().mutableInfo("Sending a message"+ m.getClass().getName() +" to "+handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort()+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+        LoggerManager.getInstance().mutableInfo("Sending a message: "+ m.getClass().getName() +" to "+handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort()+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         LoggerManager.getInstance().mutableInfo("Preparing for receiving an ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         int seqn = m.getSequenceNumber();
         // Insert in the handler the number and the thread to wait
@@ -269,7 +269,7 @@ public class ConnectionManager {
     }
 
     synchronized ClientSocketHandler receiveAdoptionOrJoinRequest(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) throws RoutingTableNodeAlreadyPresentException {
-        LoggerManager.getInstance().mutableInfo("Join request received from node "+joinMsg.getJoinerName().getIP()+":"+joinMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
+        LoggerManager.getInstance().mutableInfo("Join request received from node "+joinMsg.getJoinerName().getIP()+":"+joinMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveAdoptionOrJoinRequest"));
         // Create the new handler
         ClientSocketHandler handler = new ClientSocketHandler(unnamedHandler, joinMsg.getJoinerName(), this);
         // Add it in the current handler list
@@ -285,6 +285,7 @@ public class ConnectionManager {
 
         // Since the join is a synchronous process we need to send back the ack
         MessageAck msgAck = new MessageAck(joinMsg.getSequenceNumber());
+        LoggerManager.getInstance().mutableInfo("Join request ack back", Optional.of(this.getClass().getName()), Optional.of("receiveAdoptionOrJoinRequest"));
         boolean ret=false;
         // TODO: refactor a bit with exceptions
         while(!ret){
@@ -492,9 +493,15 @@ public class ConnectionManager {
         this.newAnchorNodeEstablishDirectConnection(msg.getNewAnchorName());
     }
 
-    private void newAnchorNodeEstablishDirectConnection(NodeName nodeName) throws IOException {
+    private void newAnchorNodeEstablishDirectConnection(NodeName nodeName) {
         AdoptionRequestMsg msg = new AdoptionRequestMsg(this.name);
-        this.joinNetwork(nodeName,msg);
+        ThreadPool.submit(()->{
+            try {
+                this.joinNetwork(nodeName,msg);
+            } catch (IOException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"IOException when ensablish connection with new Anchor", e);
+            }
+        });
     }
 
     private void sendExitNotify(NodeName nodeName, Optional<ClientSocketHandler> handler){
@@ -637,7 +644,7 @@ public class ConnectionManager {
         }
         catch (AckHandlerAlreadyRemovedException e) {
             // If a runtime exception is thrown it means that the ack has been removed, so it has been received.
-            LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+            LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendDiscoveryMessage"));
             return true;
         }
         // TODO: handle error of ack
