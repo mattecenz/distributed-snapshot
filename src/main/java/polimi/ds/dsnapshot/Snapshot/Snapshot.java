@@ -97,6 +97,7 @@ public class Snapshot {
     }
 
     private void endSnapshot() {
+        LoggerManager.getInstance().mutableInfo("ending snapshot", Optional.of(this.getClass().getName()), Optional.of("endSnapshot"));
         try {
             try(FileOutputStream fos = new FileOutputStream(snapshotPath)){
                 ObjectOutputStream oos = new ObjectOutputStream(fos);

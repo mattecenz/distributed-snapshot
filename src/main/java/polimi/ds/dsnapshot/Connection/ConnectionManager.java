@@ -528,11 +528,9 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Snapshot procedure">
-    private void forwardToken(TokenMessage tokenMessage, ClientSocketHandler inputHandler){
+    private void forwardToken(TokenMessage tokenMessage){
         for(ClientSocketHandler h : this.handlerList){
-            if(!Objects.equals(h, inputHandler)){//todo: verify
-                h.sendMessage(tokenMessage);
-            }
+            h.sendMessage(tokenMessage);
         }
     }
 
@@ -806,7 +804,7 @@ public class ConnectionManager {
                 String tokenName = tokenMessage.getSnapshotId()+"-"+tokenMessage.getSnapshotCreatorName().getIP()+"-"+tokenMessage.getSnapshotCreatorName().getPort();
 
                 if (snapshotManager.manageSnapshotToken(tokenName, handler.getRemoteNodeName())) {
-                    this.forwardToken(tokenMessage, handler);
+                    this.forwardToken(tokenMessage);
                 }
             }
             case MESSAGE_NOTIMPLEMENTED -> {
