@@ -49,13 +49,30 @@ public class Main {
         return input.trim();
     }
 
+    /**
+     * Retry the integer input until the user inserts the correct one
+     * @return the correct input integer
+     */
+    private static Integer retryInputInteger(){
+        Integer input;
+        while(!scanner.hasNextInt()){
+            // Flush the number
+            scanner.nextLine();
+            SystemOutTS.print("Invalid input, please try again: ");
+        }
+        input = scanner.nextInt();
+        // Flush
+        scanner.nextLine();
+        return input;
+    }
+
+
     private static void sendMessage(){
         SystemOutTS.print("Enter ip of the receiver of the message: ");
         String ip = retryInput(regexIp);
 
         SystemOutTS.print("Enter port of the receiver of the message: ");
-        int port = scanner.nextInt();
-        scanner.nextLine();
+        int port = retryInputInteger();
 
         SystemOutTS.print("Enter text message to send: ");
         String message = scanner.nextLine();
@@ -132,8 +149,7 @@ public class Main {
 
     private static void joinNetwork(){
         SystemOutTS.print("Enter the port you want to open your connection: ");
-        int myPort = scanner.nextInt();
-        scanner.nextLine();
+        int myPort = retryInputInteger();
 
         // TODO: is it good ?
         JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
@@ -143,8 +159,7 @@ public class Main {
 
         // Avoid error checking on the port for the moment
         SystemOutTS.print("Enter port of the node you want to connect to: ");
-        int port = scanner.nextInt();
-        scanner.nextLine();
+        int port = retryInputInteger();
 
         try {
             JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
@@ -164,8 +179,7 @@ public class Main {
     private static void createNetwork(){
 
         SystemOutTS.print("Enter port of the client you want to create: ");
-        int myPort = scanner.nextInt();
-        scanner.nextLine();
+        int myPort = retryInputInteger();
 
         // TODO: is it good ?
         JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
