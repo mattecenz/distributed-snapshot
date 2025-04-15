@@ -605,7 +605,7 @@ public class ConnectionManager {
         this.forwardMessage(message, destinationNodeName);
     }
 
-    private synchronized void forwardMessage(Message message, NodeName destinationNodeName){
+    private void forwardMessage(Message message, NodeName destinationNodeName){
         try {
             ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
             handler.sendMessage(message);

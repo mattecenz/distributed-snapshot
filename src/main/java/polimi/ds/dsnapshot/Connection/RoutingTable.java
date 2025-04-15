@@ -88,7 +88,7 @@ public class RoutingTable implements Serializable {
     }
 
 
-    private synchronized String getRoutingTableString() {
+    private String getRoutingTableString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Routing Table:\n");
         var keys = routingTableFields.keys();
