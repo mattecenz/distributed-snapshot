@@ -12,6 +12,7 @@ verify = True
 
 log_path = "./logOutput/"
 
+snapshot_creators = []
 
 class Task:
     def __init__(self, input_data, port, expected_output, sync_points=None):
@@ -20,6 +21,7 @@ class Task:
         self.expected_output = expected_output
         self.sync_points = sync_points or []  # Lista di indici di sincronizzazione
         self.logClean = None
+        self.receivedSnapshotCount = 0
 
     @staticmethod
     def from_dict(data, local_ip):
@@ -33,6 +35,9 @@ class Task:
             sync_points= data.get('sync_points', [])
         )
 
+    def receiveNewSnapshot(self):
+        self.receivedSnapshotCount += 1
+
     def setLogStatus(self, logClean):
         self.logClean = logClean
 
@@ -42,6 +47,9 @@ def replace_tokens(string_list, local_ip, port):
     """
     updated_data = []
     for item in string_list:
+        if "<snapshot_start>" in item:
+            item = item.replace("<snapshot_start>", "/snapshot")
+            snapshot_creators.append(port)
         if "<local_ip>" in item:
             item = item.replace("<local_ip>", local_ip)
         # Sostituzione del token <exit-notify-received (port)>
@@ -90,6 +98,9 @@ def final_test_check():
         if(not task.logClean):
             print(f"test present severe exception in logs of node: {task.port}")
             #test_correct=False
+        if(not task.receivedSnapshotCount == len(snapshot_creators)):
+            print(f"missing snapshot I/O message in node: {task.port}")
+            test_correct=False
 
     if(test_correct):
         print("test successful")
@@ -157,6 +168,8 @@ def task_handler(cmd,task, testVerify):
         print(f"start verify {task.port}")
         
         for line in stdout.split("\n"):
+            if "Collecting state of the application." in line:
+                task.receiveNewSnapshot()
             if "A node has left the network:" in line:
                 #A node has left the network: 10.189.83.22:7000
                 match = re.search(r"(\d+\.\d+\.\d+\.\d+:\d+)", line.strip())
