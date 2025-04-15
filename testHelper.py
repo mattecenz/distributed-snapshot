@@ -85,6 +85,22 @@ def load_tasks_from_file(file_path, local_ip):
         tasks_data = json.load(f)
     return [Task.from_dict(task_data, local_ip) for task_data in tasks_data]
 
+def snapshot_exists(ip, port1, port2, extension=".bin"):
+    pattern = re.compile(rf".*-{re.escape(ip)}-{port1}-{port2}_.*\{extension}$")
+    directory = "./snapshots/"
+    
+    if not os.path.isdir(directory):
+        print("Directory snapshots non trovata!")
+        return False
+
+    for filename in os.listdir(directory):
+        if pattern.match(filename):
+            print(f"Trovato: {filename}")
+            return True
+
+    print(f" file {port1}-{port2} non trovato trovato.")
+    return False
+
 def final_test_check():
     print(f"task ready: {task_ready}\n")
     if(task_ready!=len(tasks)):
@@ -95,15 +111,22 @@ def final_test_check():
         if(len(task.expected_output)!=0):
             print(f"something went wrong with task {task.port}, {len(task.expected_output)} messages left: {task.expected_output}")
             test_correct=False
+        
+        for creator in snapshot_creators:
+            if(not snapshot_exists(local_ip, creator, task.port)): test_correct = False
+
         if(not task.logClean):
             print(f"test present severe exception in logs of node: {task.port}")
             #test_correct=False
         if(not task.receivedSnapshotCount == len(snapshot_creators)):
             print(f"missing snapshot I/O message in node: {task.port}")
             test_correct=False
-
+    
+    print("\n")
     if(test_correct):
-        print("test successful")
+        print("test successful!")
+    else: 
+        print("SEVERE: test fail!!!!")
 
 def check_log_for_severe(path, filename):
     full_path = f"{path}/{filename}"
@@ -169,6 +192,7 @@ def task_handler(cmd,task, testVerify):
         
         for line in stdout.split("\n"):
             if "Collecting state of the application." in line:
+                print(f"snapshot message receive on node {task.port}")
                 task.receiveNewSnapshot()
             if "A node has left the network:" in line:
                 #A node has left the network: 10.189.83.22:7000
