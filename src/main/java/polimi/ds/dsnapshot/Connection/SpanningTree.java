@@ -41,11 +41,12 @@ public class SpanningTree {
     }
 
     /**
-     * Getter of the anchor node
+     * Getter of the anchor node.
+     * It is an atomic operation.
      * @return the anchor node
      * @throws SpanningTreeNoAnchorNodeException if no anchor node is present
      */
-    public ClientSocketHandler getAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
+    public synchronized ClientSocketHandler getAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
         if(this.anchorNodeHandler.isEmpty()) throw new SpanningTreeNoAnchorNodeException();
 
         return this.anchorNodeHandler.get();
@@ -60,19 +61,21 @@ public class SpanningTree {
     }
 
     /**
-     * Set a new anchor node for this node
+     * Set a new anchor node for this node.
+     * It is an atomic operation
      * @param anchorNodeHandler client socket handler of the new anchor node
      */
-    public void setAnchorNodeHandler(ClientSocketHandler anchorNodeHandler) {
+    public synchronized void setAnchorNodeHandler(ClientSocketHandler anchorNodeHandler) {
         LoggerManager.getInstance().mutableInfo("set new anchor node in spanning tree: " + anchorNodeHandler.getRemoteNodeName().getIP() + ":" + anchorNodeHandler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("setAnchorNodeHandler"));
         this.anchorNodeHandler = Optional.of(anchorNodeHandler);
     }
 
     /**
-     * Remove the current anchor of the node
+     * Remove the current anchor of the node.
+     * It is an atomic operation
      * @throws SpanningTreeNoAnchorNodeException if no parent is present
      */
-    public void removeAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
+    public synchronized void removeAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
         LoggerManager.getInstance().mutableInfo("Removing the current anchor of the node.", Optional.of(this.getClass().getName()), Optional.of("setAnchorNodeHandler"));
         if(this.anchorNodeHandler.isEmpty()) throw new SpanningTreeNoAnchorNodeException();
         this.anchorNodeHandler=Optional.empty();
@@ -84,7 +87,7 @@ public class SpanningTree {
      * @param newChild new client socket handler of the child
      * @throws SpanningTreeChildAlreadyPresentException if the child is already present in the spt
      */
-    protected void addChild(ClientSocketHandler newChild) throws SpanningTreeChildAlreadyPresentException {
+    protected synchronized void addChild(ClientSocketHandler newChild) throws SpanningTreeChildAlreadyPresentException {
         LoggerManager.getInstance().mutableInfo("add child to spanning tree: " + newChild.getRemoteNodeName().getIP()+":"+newChild.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (this.children.contains(newChild)) throw new SpanningTreeChildAlreadyPresentException();
         this.children.add(newChild);
