@@ -42,10 +42,11 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Method to explicitly cleear each entry of the routing table.
+     * Method to explicitly clear each entry of the routing table.
+     * It is an atomic operation
      */
-    protected void clearTable(){
-        LoggerManager.getInstance().mutableInfo("empty routing table completely", Optional.of(this.getClass().getName()), Optional.of("clearTable"));
+    protected synchronized void clearTable(){
+        LoggerManager.getInstance().mutableInfo("clearing routing table", Optional.of(this.getClass().getName()), Optional.of("clearTable"));
         Enumeration<NodeName> keys = this.routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
@@ -54,20 +55,22 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Method to explicitly check if the routing table is empty
+     * Method to explicitly check if the routing table is empty.
+     * It is an atomic operation
      * @return true if it is empty
      */
-    protected boolean isEmpty(){
+    protected synchronized boolean isEmpty(){
         return this.routingTableFields.isEmpty();
     }
 
     /**
-     * Method to add a new entry in the routing table
+     * Method to add a new entry in the routing table.
+     * It is an atomic operation
      * @param destination name of the destination node
      * @param nextHopConnection handler to call when sending a message to the destination node
      * @throws RoutingTableNodeAlreadyPresentException if the node is already present in the routing table
      */
-    protected void addPath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeAlreadyPresentException {
+    protected synchronized void addPath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeAlreadyPresentException {
         if (this.routingTableFields.get(destination) != null) throw new RoutingTableNodeAlreadyPresentException();
         LoggerManager.getInstance().mutableInfo("add new path to the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("addPath"));
 
@@ -77,14 +80,15 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Utility method for printing the internal routing table
+     * Utility method for printing the internal routing table.
+     * It is an atomic operation
      */
-    protected void printRoutingTable() { //TODO: use log
+    protected synchronized void printRoutingTable() { //TODO: use log
         System.out.println(this.getRoutingTableString());
     }
 
 
-    private String getRoutingTableString() {
+    private synchronized String getRoutingTableString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Routing Table:\n");
         var keys = routingTableFields.keys();
@@ -100,12 +104,13 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Method to update the path to a destination node
+     * Method to update the path to a destination node.
+     * It is an atomic operation
      * @param destination destination to be updated
      * @param nextHopConnection new client handler
      * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
      */
-    protected void updatePath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeNotPresentException {
+    protected synchronized void updatePath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination)==null) throw new RoutingTableNodeNotPresentException();
         LoggerManager.getInstance().mutableInfo("update existing path in the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("updatePath"));
 
@@ -113,11 +118,12 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Method to explicitly remove the path from a specific destination node
+     * Method to explicitly remove the path from a specific destination node.
+     * It is an atomic operation
      * @param destination destination to be removed
      * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
      */
-    protected void removePath(NodeName destination) throws RoutingTableNodeNotPresentException {
+    protected synchronized void removePath(NodeName destination) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination) == null) throw new RoutingTableNodeNotPresentException();
         LoggerManager.getInstance().mutableInfo("remove existing path from the routing table:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("removePath"));
 
@@ -127,7 +133,8 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Method to remove all the paths associated to the input handler
+     * Method to remove all the paths associated to the input handler.
+     * It is an atomic operation
      * @param handler client socket handler to be removed
      */
     void removeAllIndirectPath(ClientSocketHandler handler){
@@ -143,12 +150,13 @@ public class RoutingTable implements Serializable {
     }
 
     /**
-     * Return the handler associated to the node name in input
+     * Return the handler associated to the node name in input.
+     * It is an atomic operation
      * @param destination name of the node to be searched in the routing table
      * @return the client socket handler, if found
      * @throws RoutingTableNodeNotPresentException if the node was not found in the routing table
      */
-    ClientSocketHandler getNextHop(NodeName destination) throws RoutingTableNodeNotPresentException {
+    synchronized ClientSocketHandler getNextHop(NodeName destination) throws RoutingTableNodeNotPresentException {
         LoggerManager.getInstance().mutableInfo("requested next hop for:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
         ClientSocketHandler nextHop = this.routingTableFields.get(destination);
 

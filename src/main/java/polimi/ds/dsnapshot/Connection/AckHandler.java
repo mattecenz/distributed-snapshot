@@ -21,17 +21,19 @@ public class AckHandler{
     }
 
     /**
-     * Insert in the data structure the id of the message that waits for his ack
+     * Insert in the data structure the id of the message that waits for his ack.
+     * It is an atomic operation
      * @param ack unique id found in the Message class
      * @param lock lock where the thread is waiting
      */
     public synchronized void insertAckId(int ack, Object lock) {
         LoggerManager.getInstance().mutableInfo("inserting ack: " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("insertAckId"));
-        this.acksPending.put(ack,ack);
+        this.acksPending.put(ack,lock);
     }
 
     /**
-     * Remove specified id And notify the waiting thread
+     * Remove specified id And notify the waiting thread.
+     * It is an atomic operation
      * @param ack id of the message to remove
      */
     public synchronized void removeAckId(int ack) throws AckHandlerAlreadyRemovedException {
@@ -42,7 +44,7 @@ public class AckHandler{
             LoggerManager.getInstance().mutableInfo("No thread found waiting for ack " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("removeAckId"));
             throw new AckHandlerAlreadyRemovedException();
         }
-        // Notify the object
+        // Notify the object by notifying the thread waiting on that lock.
         synchronized (toNotify){
             LoggerManager.getInstance().mutableInfo("removing ack: " + ack + ".", Optional.of(this.getClass().getName()), Optional.of("removeAckId"));
             toNotify.notifyAll();
