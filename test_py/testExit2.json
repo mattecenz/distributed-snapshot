@@ -46,6 +46,7 @@
         "input": ["n","9000","<local_ip>","5000","/msg","<local_ip>","5000","ciao sono 9","/msg","<local_ip>","6000","ciao sono 9","/msg","<local_ip>","7000","ciao sono 9","/exit"],
         "port": 9000,
         "expected_output": ["ciao sono 2"],
-        "sync_points": [0,1,2,5,6]
+        "sync_points": [0,1,2,5,6],
+        "expected_final_father": 0
     }
 ]

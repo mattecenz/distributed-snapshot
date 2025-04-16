@@ -171,7 +171,7 @@ public class RoutingTable implements Serializable {
         return nextHop;
     }
 
-    public SerializableRoutingTable toSerialize(){
+    public synchronized SerializableRoutingTable toSerialize(){
         return new SerializableRoutingTable(routingTableFields);
     }
 }

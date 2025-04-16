@@ -6,6 +6,8 @@ import re
 import json
 import sys
 
+import javaobj
+
 verify = True
 
 #local_ip = "10.169.155.239"
@@ -15,13 +17,14 @@ log_path = "./logOutput/"
 snapshot_creators = []
 
 class Task:
-    def __init__(self, input_data, port, expected_output, sync_points=None):
+    def __init__(self, input_data, port, expected_output, sync_points=None, expected_final_father = '0'):
         self.input = input_data
         self.port = port
         self.expected_output = expected_output
         self.sync_points = sync_points or []  # Lista di indici di sincronizzazione
         self.logClean = None
         self.receivedSnapshotCount = 0
+        self.expected_final_father = expected_final_father
 
     @staticmethod
     def from_dict(data, local_ip):
@@ -32,7 +35,8 @@ class Task:
             input_data= input_data,
             port= data['port'],
             expected_output= expected_output,
-            sync_points= data.get('sync_points', [])
+            sync_points= data.get('sync_points', []),   
+            expected_final_father = data['expected_final_father']
         )
 
     def receiveNewSnapshot(self):
@@ -96,10 +100,58 @@ def snapshot_exists(ip, port1, port2, extension=".bin"):
     for filename in os.listdir(directory):
         if pattern.match(filename):
             print(f"Trovato: {filename}")
-            return True
+            return True, directory+filename
 
     print(f" file {port1}-{port2} non trovato trovato.")
     return False
+
+def read_snapshot(file_path, task):
+    with open(file_path, 'rb') as f:
+        obj = javaobj.load(f)
+
+        # Verifica se l'oggetto è di tipo 'JavaObject' o qualcosa di diverso
+        if isinstance(obj, javaobj.JavaObject):
+            try:
+                if hasattr(obj, 'anchorNode'):
+                    anchor_node = obj.anchorNode
+                    if not snapshot_verify_anchor(anchor_node,task): return False
+                else: 
+                    print('no anchor node saved in the snapshot')
+                    return False
+                if hasattr(obj, 'routingTable'):
+                    routing_table = obj.routingTable
+                else:
+                    print('no routing table present in the snapshot')
+                    return False
+
+
+            except Exception as e:
+                print(f"Error while parsing java obj: {e}")
+                return False
+        else:
+            print("the snapshot isn't a 'JavaObject'.")
+            return False
+    return True
+
+def snapshot_verify_anchor(anchor_node, task):
+    if(task.expected_final_father==0): return True
+
+    if isinstance(anchor_node, javaobj.JavaObject):
+        try:
+            if hasattr(anchor_node, 'IP'):
+                IP = anchor_node.IP
+            if hasattr(anchor_node, 'port'):
+                port = anchor_node.port
+                if((not task.expected_final_father==0) and (not task.expected_final_father==port)): 
+                    print(f"wrong father saved in the snapshot file of {task.port}")
+                    return False
+        except Exception as e:
+            print(f"Error while parsing java obj: {e}")
+            return False
+    else:
+        print(f"the anchor_node of {task.port} isn't a 'JavaObject'.")  
+        return False
+    return True
 
 def final_test_check():
     print(f"task ready: {task_ready}\n")
@@ -113,7 +165,9 @@ def final_test_check():
             test_correct=False
         
         for creator in snapshot_creators:
-            if(not snapshot_exists(local_ip, creator, task.port)): test_correct = False
+            b, path = snapshot_exists(local_ip, creator, task.port)
+            if(not b): test_correct = False
+            elif not read_snapshot(path, task): test_correct = False
 
         if(not task.logClean):
             print(f"test present severe exception in logs of node: {task.port}")
