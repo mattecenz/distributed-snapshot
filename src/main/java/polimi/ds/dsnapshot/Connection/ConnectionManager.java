@@ -7,6 +7,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
+import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;

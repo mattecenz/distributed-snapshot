@@ -1,7 +1,6 @@
 package polimi.ds.dsnapshot.Snapshot;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +10,7 @@ import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Connection.*;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
-import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
@@ -19,12 +18,9 @@ import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
-import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
-import java.io.Serial;
 import java.io.Serializable;
-import java.net.Socket;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;

@@ -1,7 +1,6 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
-import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 
