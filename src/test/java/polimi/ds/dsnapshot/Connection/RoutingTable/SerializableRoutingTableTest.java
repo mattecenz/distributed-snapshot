@@ -1,0 +1,55 @@
+package polimi.ds.dsnapshot.Connection.RoutingTable;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
+import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.util.Dictionary;
+
+import static org.mockito.Mockito.when;
+
+public class SerializableRoutingTableTest {
+
+    private RoutingTable routingTable;
+    private NodeName nodeName = new NodeName("friggeri",2000);
+    @Mock
+    ClientSocketHandler clientSocketHandler;
+    @Mock
+    Socket socket;
+    @Mock
+    OutputStream out;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        routingTable = new RoutingTable();
+
+        MockitoAnnotations.openMocks(this);
+        when(clientSocketHandler.getRemoteNodeName()).thenReturn(nodeName);
+        when(socket.getOutputStream()).thenReturn(out);
+
+        clientSocketHandler = new ClientSocketHandler(socket, nodeName, null);
+    }
+
+    @Test
+    void serializeTest() throws RoutingTableNodeAlreadyPresentException {
+        routingTable.addPath(nodeName,clientSocketHandler);
+
+        SerializableRoutingTable serializableRoutingTable = routingTable.toSerialize();
+
+        Dictionary<NodeName, NodeName> routingTableFields = serializableRoutingTable.getOldRoutingTableFields();
+
+        var keys = routingTableFields.keys();
+        while(keys.hasMoreElements()) {
+            NodeName key = (NodeName) keys.nextElement();
+            assert routingTableFields.get(key) == nodeName;
+        }
+    }
+
+}

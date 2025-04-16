@@ -77,11 +77,10 @@ public class JavaDistributedSnapshot{
         applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
     }
 
-    public void sendMessage(Serializable messageContent, boolean requireAck, String destinationIp, int destinationPort) throws IOException {
+    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws IOException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
-        ApplicationMessage applicationMessage = new ApplicationMessage(messageContent, destinationNodeName, requireAck);
-        connectionManager.sendMessage(applicationMessage, destinationNodeName);
+        connectionManager.sendMessage(messageContent, destinationNodeName);
     }
 
     public void ReceiveMessage(CallbackContent callbackContent){

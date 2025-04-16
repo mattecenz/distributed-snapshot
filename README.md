@@ -30,10 +30,10 @@ We need both the library and the application.
 | ---- | ----- | ------- | 
 | Join procedure | :green_circle: | :green_circle: | 
 | Send msg | :green_circle: | :green_circle: |
-| Exit procedure | :orange_circle: (partially implemented) | :red_circle: |
+| Exit procedure | :green_circle: | :green_circle: |
 | Ping pong | :green_circle: | :red_circle: |
 | Ping pong fail reaction | :red_circle: | :red_circle: |
-| Snapshot procedure | :green_circle: | :red_circle: |
+| Snapshot procedure | :green_circle: | :orange_circle: [partially tested] |
 | Snapshot procedure reset | :red_circle: | :red_circle: |
 
 

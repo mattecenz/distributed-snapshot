@@ -66,7 +66,7 @@ public class SnapshotManager {
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
         eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
-            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, channelName.getPort());
+            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, this.connectionManager.getName().getPort());
             snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to start snapshot " + snapshotCode, e);

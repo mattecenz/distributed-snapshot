@@ -1,7 +1,6 @@
 package polimi.ds.dsnapshot.Snapshot;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +10,7 @@ import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Connection.*;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
-import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
@@ -19,11 +18,9 @@ import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
-import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.Socket;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -40,6 +37,7 @@ public class SnapshotTest {
     private SnapshotManager snapshotManger;
 
 
+
     @BeforeEach
     public void setup() {
         LoggerManager.start(104);
@@ -49,6 +47,7 @@ public class SnapshotTest {
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
         javaDistributedSnapshot.setConnectionManager(connectionManagerMock);
 
+
         snapshotManger = new SnapshotManager(connectionManagerMock);
         System.out.println(" ");
 
@@ -57,6 +56,9 @@ public class SnapshotTest {
 
     @Test
     public void SnapshotNoMessagesTest() throws JavaDSException, InterruptedException {
+        NodeName name = new NodeName("friggeri",0);
+        when(connectionManagerMock.getName()).thenReturn(name);
+
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();
         exampleApplicationInterface.state.i = rand.nextInt();
@@ -91,10 +93,10 @@ public class SnapshotTest {
 
         Thread.sleep(1000);//to be sure the file is saved
 
-        byte[] applicationState = snapshotManger.getLastSnapshot(0).getApplicationState();
+        Serializable applicationState = snapshotManger.getLastSnapshot(0).getApplicationState();
 
         assertDoesNotThrow(() -> {
-            ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            ExampleApplicationLayerState savedApplicationState = (ExampleApplicationLayerState) applicationState;
             System.out.println(savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
@@ -149,6 +151,9 @@ public class SnapshotTest {
 
 
     private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, JavaDSException, EventException {
+        NodeName name = new NodeName("friggeri",port);
+        when(connectionManagerMock.getName()).thenReturn(name);
+
         //application state
         ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
         Random rand = new Random();
@@ -214,10 +219,10 @@ public class SnapshotTest {
 
         SnapshotState savedSnapshotState = snapshotManger.getLastSnapshot(port);
         assertNotNull(savedSnapshotState);
-        byte[] applicationState = savedSnapshotState.getApplicationState();
+        Serializable applicationState = savedSnapshotState.getApplicationState();
 
         assertDoesNotThrow(() -> {
-            ExampleApplicationLayerState savedApplicationState = SerializationUtils.deserialize(applicationState);
+            ExampleApplicationLayerState savedApplicationState = (ExampleApplicationLayerState) applicationState;
             System.out.println("saved snapshot state: " + savedApplicationState.i);
             assertEquals(savedApplicationState.i, exampleApplicationInterface.state.i);
         });
@@ -237,7 +242,7 @@ public class SnapshotTest {
             System.out.println("token received from channel: " + ip + ":" + port);
             snapshotManger.manageSnapshotToken("testS2", new NodeName(ip,port));
         }else {
-            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(message,new NodeName(ip,port),false));
+            EventsBroker.getEventChannel(ip+":"+port).publish(new ApplicationMessage(message,new NodeName("test",1234),new NodeName(ip,port)));
         }
     }
     private static class ExampleApplicationInterface implements ApplicationLayerInterface {
