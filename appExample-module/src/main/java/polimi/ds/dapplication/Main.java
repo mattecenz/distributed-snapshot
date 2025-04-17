@@ -1,6 +1,9 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
+import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
+import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
+import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
@@ -80,8 +83,10 @@ public class Main {
 
         try {
             JavaDistributedSnapshot.getInstance().sendMessage(sm, ip, port);
-        } catch (IOException e) {
-            System.err.println("The library threw an IOException: " + e.getMessage());
+        } catch (DSNodeUnreachableException e) {
+            System.err.println("The client you tried to contact is unreachable. Are you sure it is in the network?");
+        } catch (DSMessageToMyselfException e) {
+            SystemOutTS.println("You are sending a message to yourself, try choosing another destination.");
         }
     }
 
@@ -147,11 +152,6 @@ public class Main {
     }
 
     private static void joinNetwork(){
-        SystemOutTS.print("Enter the port you want to open your connection: ");
-        int myPort = retryInputInteger();
-
-        // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
 
         SystemOutTS.print("Enter ip of the node you want to connect to: ");
         String ip = retryInput(regexIp);
@@ -175,25 +175,27 @@ public class Main {
         // Exit from the application if an exception is raised
     }
 
-    private static void createNetwork(){
+    public static void main(String[] args) {
+
+        SystemOutTS.print("Enter your ip address: ");
+        String ip = retryInput(regexIp);
 
         SystemOutTS.print("Enter port of the client you want to create: ");
         int myPort = retryInputInteger();
 
-        // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
-
-        applicationLoop();
-    }
-
-    public static void main(String[] args) {
+        try {
+            JavaDistributedSnapshot.getInstance().startSocketConnection(ip, myPort, appUtility);
+        } catch (DSPortAlreadyInUseException e) {
+            System.err.println("The port you entered is already in use on this machine, choose another one.");
+            return;
+        }
 
         // Ask the client if he wants to join a network or not
         SystemOutTS.print("Do you want to create a new network? [y/N] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){
-            createNetwork();
+            applicationLoop();
         }
         else{
             joinNetwork();

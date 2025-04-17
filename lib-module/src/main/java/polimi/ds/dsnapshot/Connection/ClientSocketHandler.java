@@ -7,10 +7,12 @@ import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -171,8 +173,8 @@ public class ClientSocketHandler implements Runnable{
                 LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("run"));
                 // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                 this.manager.receiveMessage(m, this);
-            } catch (IOException e) {
-                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+            } catch (EOFException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "The channel has been forcefully closed from the other side.", e);
                 // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
                 this.inAvailable.set(false);
             }catch (ClassNotFoundException e){
@@ -182,6 +184,10 @@ public class ClientSocketHandler implements Runnable{
             }catch (NullPointerException e){
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "NullPointerException", e);
                 System.out.println(e.getMessage());
+                this.inAvailable.set(false);
+            } catch (IOException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO Exception", e);
+                // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
                 this.inAvailable.set(false);
             }
         }
@@ -217,6 +223,10 @@ public class ClientSocketHandler implements Runnable{
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
+            } catch (SocketException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "The socket has been abruptly closed. Cannot send messages anymore", e);
+                // TODO: what to do ?
+                return false;
             } catch (IOException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
                 // TODO: what to do ?

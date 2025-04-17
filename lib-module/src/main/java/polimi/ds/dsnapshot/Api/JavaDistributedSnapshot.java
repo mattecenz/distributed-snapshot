@@ -5,6 +5,9 @@ import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
+import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
+import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
@@ -30,12 +33,11 @@ public class JavaDistributedSnapshot{
         return instance;
     }
 
-    //todo find better name
-    public void startSocketConnection(int hostPort, ApplicationLayerInterface applicationLayerInterface) {
+    public void startSocketConnection(String ip, int hostPort, ApplicationLayerInterface applicationLayerInterface) throws DSPortAlreadyInUseException {
         //start log
         LoggerManager.start(hostPort);
 
-        connectionManager = new ConnectionManager(hostPort);
+        connectionManager = new ConnectionManager(ip, hostPort);
         connectionManager.start();
 
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
@@ -73,7 +75,7 @@ public class JavaDistributedSnapshot{
         applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
     }
 
-    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws IOException {
+    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSNodeUnreachableException, DSMessageToMyselfException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
         connectionManager.sendMessage(messageContent, destinationNodeName);

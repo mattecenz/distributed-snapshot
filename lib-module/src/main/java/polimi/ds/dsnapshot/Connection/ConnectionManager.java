@@ -12,10 +12,7 @@ import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,49 +59,70 @@ public class ConnectionManager {
      * For the moment we can assume it is immutable
      */
     private final NodeName name;
+    /**
+     * Socket created for receiving inbound messages.
+     * It is not final as it might fail to connect to the port.
+     */
+    private ServerSocket serverSocket;
 
     double directConnectionProbability = Config.getDouble("network.directConnectionProbability");
 
     /**
      * Constructor of the connection manager
+     * @param ip ip of the client (useful for naming purposes)
+     * @param port port of the client where the socket is opened
+     * @throws DSPortAlreadyInUseException if the port is already used by someone else
      */
-    public ConnectionManager(int port){
+    public ConnectionManager(String ip, int port) throws DSPortAlreadyInUseException{
         this.unNamedHandlerList = new ArrayList<>();
         this.handlerList = new ArrayList<>();
         this.ackHandler = new AckHandler();
 
-        // Default value if something goes wrong
-        String thisIP = "127.0.0.1";
-        try{
-            InetAddress localHost = InetAddress.getLocalHost();
-            // Get the IP address as a string
-            thisIP = localHost.getHostAddress();
-        }
-        catch(UnknownHostException e){
-            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Host not connected to network, cannot do anything:", e);
-        }
-        this.name = new NodeName(thisIP, port);
+        // TODO: for the moment this is useless, maybe it will be useful later.
+//        // Default value if something goes wrong
+//        String thisIP = "127.0.0.1";
+//        try{
+//            InetAddress localHost = InetAddress.getLocalHost();
+//            // Get the IP address as a string
+//            thisIP = localHost.getHostAddress();
+//        }
+//        catch(UnknownHostException e){
+//            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Host not connected to network, cannot do anything:", e);
+//        }
+        this.name = new NodeName(ip, port);
 
-        LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+thisIP+":"+port , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+        LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: " + ip + ":" + port, Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+
+        // Create the socket if possible.
+        try{
+            this.serverSocket =new ServerSocket(port);
+            LoggerManager.getInstance().mutableInfo("Created listening socket on port " + this.name.getPort() + " ...", Optional.of(this.getClass().getName()), Optional.of("start"));
+        }
+        catch(BindException e){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "The port you want to use is already occupied! ", e);
+            throw new DSPortAlreadyInUseException();
+        }
+        catch(IOException e){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+            // TODO: what to do ?
+        }
     }
 
     public NodeName getName() {
         return name;
     }
 
-    public void start(){
+    public void start() throws DSPortAlreadyInUseException{
         LoggerManager.getInstance().mutableInfo("Preparing the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
         // This start has to launch another thread.
 
+
         Thread t = new Thread(()->{
-
-            try(ServerSocket serverSocket = new ServerSocket(this.name.getPort())){
-                LoggerManager.getInstance().mutableInfo("Created listening socket on port "+this.name.getPort()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
-
+            try{
                 while(true){
                     LoggerManager.getInstance().mutableInfo("Waiting for connection...", Optional.of(this.getClass().getName()), Optional.of("start"));
-                    Socket socket = serverSocket.accept();
+                    Socket socket = this.serverSocket.accept();
                     LoggerManager.getInstance().mutableInfo("Accepted connection from " + socket.getRemoteSocketAddress()+" ...", Optional.of(this.getClass().getName()), Optional.of("start"));
                     // When you receive a new connection add it to the list of unnamed connections
                     UnNamedSocketHandler unhandler = new UnNamedSocketHandler(socket, this);
@@ -115,18 +133,17 @@ public class ConnectionManager {
                     ThreadPool.submit(unhandler);
                     LoggerManager.getInstance().mutableInfo("Connection submitted to executor...", Optional.of(this.getClass().getName()), Optional.of("start"));
                 }
-
-            }catch (IOException e){
+            }
+            catch(IOException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
-                // TODO: what to do ?
             }
             // Here the serverSocket is closed
             LoggerManager.getInstance().mutableInfo("Shutting down...", Optional.of(this.getClass().getName()), Optional.of("start"));
         });
 
         LoggerManager.getInstance().mutableInfo("Launching the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
-
         t.start();
+
     }
 
     // TODO: maybe its better if the method is private (called by a generic sendMessage that works as interface)
@@ -601,31 +618,27 @@ public class ConnectionManager {
         return ok;
     }
 
-    public void sendMessage(Serializable content, NodeName destinationNodeName){
+    public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSNodeUnreachableException, DSMessageToMyselfException{
+        if(destinationNodeName.equals(this.name)) throw new DSMessageToMyselfException();
         ApplicationMessage message = new ApplicationMessage(content, this.name, destinationNodeName);
         this.forwardMessage(message, destinationNodeName);
     }
 
-    private void forwardMessage(Message message, NodeName destinationNodeName){
+    private void forwardMessage(Message message, NodeName destinationNodeName) throws DSNodeUnreachableException{
         try {
             ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
             handler.sendMessage(message);
         } catch (RoutingTableNodeNotPresentException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not present in routing table", e);
 
-            // Do discovery
-            boolean ok = this.sendDiscoveryMessage(destinationNodeName);
+            // Do discovery. If something goes wrong an exception is thrown.
+            this.sendDiscoveryMessage(destinationNodeName);
 
-            if(ok){
-                try {
-                    ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
-                    handler.sendMessage(message);
-                } catch (RoutingTableNodeNotPresentException ex) {
-                    LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, the node should be present in the rt", ex);
-                }
-            }
-            else {
-                LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not reachable, careful", e);
+            try {
+                ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
+                handler.sendMessage(message);
+            } catch (RoutingTableNodeNotPresentException ex) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, the node should be present in the rt", ex);
             }
         }
     }
@@ -633,14 +646,13 @@ public class ConnectionManager {
     /**
      * Method invoked when we need to discover if a node is present in the network
      * @param destinationNodeName name of the node to discover
-     * @return true if everything went well
      */
-    private boolean sendDiscoveryMessage(NodeName destinationNodeName){
+    private void sendDiscoveryMessage(NodeName destinationNodeName) throws DSNodeUnreachableException{
         MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
 
         boolean ok = this.forwardMessageAlongSPT(msgd, Optional.empty());
 
-        if(!ok) return false;
+        if(!ok) return;
 
         // Do the same as a synchronized message, wait for the reply
         // TODO: a bit of duplicated code
@@ -657,18 +669,17 @@ public class ConnectionManager {
         }
         catch (InterruptedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
-            return false;
+            return;
         }
         catch (AckHandlerAlreadyRemovedException e) {
             // If a runtime exception is thrown it means that the ack has been removed, so it has been received.
             LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendDiscoveryMessage"));
-            return true;
+            return;
         }
-        // TODO: handle error of ack
         // If no exception is thrown then it means that
         LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
 
-        return false;
+        throw new DSNodeUnreachableException();
     }
 
     /**
@@ -745,7 +756,11 @@ public class ConnectionManager {
                     Event messageInputChannel = handler.getMessageInputChannel();
                     messageInputChannel.publish(m);
                 }else{
-                    this.forwardMessage(m,app.getReceiver());
+                    try {
+                        this.forwardMessage(m,app.getReceiver());
+                    } catch (DSNodeUnreachableException e) {
+                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "The message is trying to be routed towards an unreachable node (PS:we should not be here): ", e);
+                    }
                 }
             }
             case MESSAGE_DISCOVERY -> {
