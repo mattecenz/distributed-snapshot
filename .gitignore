@@ -5,6 +5,8 @@ target/
 
 snapshots/*
 logOutput/*
+lib-module/snapshots/*
+lib-module/logOutput/*
 
 ### IntelliJ IDEA ###
 .idea/*

@@ -1,13 +1,11 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
-import polimi.ds.dsnapshot.ApplicationLayerInterface;
+import polimi.ds.dsnapshot.Api.ApplicationLayerInterface;
 
 import polimi.ds.dapplication.Message.Message;
-import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.Serializable;
-import java.util.Optional;
 
 public class AppUtility implements ApplicationLayerInterface {
 

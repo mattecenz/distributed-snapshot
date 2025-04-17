@@ -1,6 +1,5 @@
 package polimi.ds.dsnapshot.Connection.Messages;
 
-import org.w3c.dom.Node;
 import polimi.ds.dsnapshot.Connection.NodeName;
 
 /**

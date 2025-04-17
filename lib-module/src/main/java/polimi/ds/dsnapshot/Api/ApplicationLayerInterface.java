@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot;
+package polimi.ds.dsnapshot.Api;
 
 import java.io.Serializable;
 

@@ -26,7 +26,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
-import polimi.ds.dsnapshot.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
