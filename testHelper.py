@@ -10,6 +10,8 @@ import javaobj
 
 verify = True
 
+jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
+
 #local_ip = "10.169.155.239"
 
 log_path = "./logOutput/"
@@ -74,7 +76,7 @@ def open_terminals_with_commands(tasks):
         return  # Interrompi l'esecuzione se non sono coerenti
 
     for task in tasks:      
-        thread = threading.Thread(target=task_handler, args=("java -jar target/untitled-1.0-SNAPSHOT-jar-with-dependencies.jar",task,verify))  # Add a comma to pass a tuple correctly
+        thread = threading.Thread(target=task_handler, args=(jar_comand,task,verify))  # Add a comma to pass a tuple correctly
         thread.start()
         time.sleep(0.5)  # Ritardo per evitare problemi di apertura simultanea
 
