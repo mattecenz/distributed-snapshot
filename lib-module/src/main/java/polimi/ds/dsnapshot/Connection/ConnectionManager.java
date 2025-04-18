@@ -751,6 +751,14 @@ public class ConnectionManager {
             case MESSAGE_DISCOVERY -> {
                 MessageDiscovery msgd = (MessageDiscovery) m;
 
+                // Save in routing table
+                try {
+                    this.routingTable.addPath(msgd.getOriginName(), handler);
+                } catch (RoutingTableNodeAlreadyPresentException e) {
+                    LoggerManager.getInstance().mutableInfo( "Node already present. Do nothing", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+                    // I guess just do not do anything
+                }
+
                 // I need to check if I am the correct destination
                 if(Objects.equals(msgd.getDestinationName(),this.name)){
 
@@ -762,13 +770,6 @@ public class ConnectionManager {
                     return;
                 }
 
-                // Save in routing table
-                try {
-                    this.routingTable.addPath(msgd.getOriginName(), handler);
-                } catch (RoutingTableNodeAlreadyPresentException e) {
-                    LoggerManager.getInstance().mutableInfo( "Node already present. Do nothing", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
-                    // I guess just do not do anything
-                }
 
                 // just forward the signal along the spt. If it is in the routing table good, else along spt
                 try{

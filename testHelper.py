@@ -8,7 +8,9 @@ import sys
 
 import javaobj
 
+task_ready = 0
 verify = True
+print_ns_rt = True
 
 jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
@@ -19,7 +21,7 @@ log_path = "./logOutput/"
 snapshot_creators = []
 
 class Task:
-    def __init__(self, input_data, port, expected_output, sync_points=None, expected_final_father = '0'):
+    def __init__(self, input_data, port, expected_output, sync_points=None, expected_final_father = '0', expected_final_rt_entries = []):
         self.input = input_data
         self.port = port
         self.expected_output = expected_output
@@ -27,18 +29,20 @@ class Task:
         self.logClean = None
         self.receivedSnapshotCount = 0
         self.expected_final_father = expected_final_father
+        self.expected_final_rt_entries = expected_final_rt_entries
 
     @staticmethod
     def from_dict(data, local_ip):
-        input_data = replace_tokens(data['input'],local_ip,data['port'])
-        expected_output = replace_tokens(data['expected_output'],local_ip,data['port'])
+        input_data = replace_tokens(data['input'], local_ip, data['port'])
+        expected_output = replace_tokens(data['expected_output'], local_ip, data['port'])
         
         return Task(
-            input_data= input_data,
-            port= data['port'],
-            expected_output= expected_output,
-            sync_points= data.get('sync_points', []),   
-            expected_final_father = data['expected_final_father']
+            input_data=input_data,
+            port=data['port'],
+            expected_output=expected_output,
+            sync_points=data.get('sync_points', []),
+            expected_final_father=data.get('expected_final_father', '0'),
+            expected_final_rt_entries=data.get('expected_final_rt_entries', [])
         )
 
     def receiveNewSnapshot(self):
@@ -65,8 +69,6 @@ def replace_tokens(string_list, local_ip, port):
             item = item.replace(match.group(0), f"{local_ip}:{port}")  # Sostituisce il token con local_ip:por
         updated_data.append(item)
     return updated_data
-
-task_ready = 0
 
 def open_terminals_with_commands(tasks):
     sync_lengths = [len(task.sync_points) for task in tasks]
@@ -101,7 +103,7 @@ def snapshot_exists(ip, port1, port2, extension=".bin"):
 
     for filename in os.listdir(directory):
         if pattern.match(filename):
-            print(f"Trovato: {filename}")
+            #print(f"Trovato: {filename}")
             return True, directory+filename
 
     print(f" file {port1}-{port2} non trovato trovato.")
@@ -122,6 +124,7 @@ def read_snapshot(file_path, task):
                     return False
                 if hasattr(obj, 'routingTable'):
                     routing_table = obj.routingTable
+                    if not snapshot_verify_rt(routing_table, task): return False
                 else:
                     print('no routing table present in the snapshot')
                     return False
@@ -135,25 +138,90 @@ def read_snapshot(file_path, task):
             return False
     return True
 
-def snapshot_verify_anchor(anchor_node, task):
-    if(task.expected_final_father==0): return True
+def snapshot_verify_rt(routing_table, task):
+    destinations = []
+    nexthops = []
 
-    if isinstance(anchor_node, javaobj.JavaObject):
+    # parse java obj
+    if isinstance(routing_table, javaobj.JavaObject):
         try:
-            if hasattr(anchor_node, 'IP'):
-                IP = anchor_node.IP
-            if hasattr(anchor_node, 'port'):
-                port = anchor_node.port
-                if((not task.expected_final_father==0) and (not task.expected_final_father==port)): 
-                    print(f"wrong father saved in the snapshot file of {task.port}")
-                    return False
+            if hasattr(routing_table, 'routingTableFields'):
+                table = routing_table.routingTableFields
+                if isinstance(table, javaobj.JavaObject) and hasattr(table, '__dict__'):
+                    annotations = table.__dict__.get('annotations', None)
+                    if annotations and isinstance(annotations, list):
+                        # Filtra eventuali header non oggetto
+                        clean_annotations = [a for a in annotations if isinstance(a, javaobj.JavaObject)]
+                        
+                        if len(clean_annotations) % 2 != 0:
+                            print(f"Warning: annotations list is not even! ({len(clean_annotations)} items)")
+                        
+                        for i in range(0, len(clean_annotations), 2):
+                            destination = clean_annotations[i]
+                            nexthop = clean_annotations[i + 1] if i + 1 < len(clean_annotations) else None
+
+                            destinations.append(destination)
+                            nexthops.append(nexthop)
+                        
+                        if print_ns_rt: snapshot_print_rt(destinations,nexthops,task)
         except Exception as e:
             print(f"Error while parsing java obj: {e}")
             return False
     else:
-        print(f"the anchor_node of {task.port} isn't a 'JavaObject'.")  
+        print(f"the routing_table of {task.port} isn't a 'JavaObject'.")  
         return False
+
+    # rt verification
+    destionation_ports = []
+    for destination in destinations:
+        b, IP, port = nodeName_pars(destination)
+        if b:
+            destionation_ports.append(port)
+
+    for entri in task.expected_final_rt_entries:
+        if(not entri in destionation_ports): 
+            print(f"missing  entri {entri} in rt of {task.port}")
+            return False
+        
     return True
+   
+
+def snapshot_print_rt(keys,values,task):
+    print ("\n")
+    print(f"###################### start rt of {task.port}  ###################### ")
+    for key, value in zip(keys, values):
+        kb,kIP,kport = nodeName_pars(key)
+        vb,vIP,vport = nodeName_pars(value)
+        if kb and vb:
+            print(f"{kIP}:{kport} -> {vIP}:{vport}")
+    print(f"###################### end rt of {task.port}  ###################### ")
+    print ("\n")
+            
+
+def nodeName_pars(node_name):
+    if isinstance(node_name, javaobj.JavaObject):
+        try:
+            if hasattr(node_name, 'IP') and hasattr(node_name, 'port'):
+                IP = node_name.IP
+                port = node_name.port
+                return True,IP,port
+        except Exception as e:
+            print(f"Error while parsing java obj: {e}")
+    return False,None,None
+                   
+
+def snapshot_verify_anchor(anchor_node, task):
+    if(task.expected_final_father==0): return True
+
+    b, IP, port = nodeName_pars(anchor_node)
+    if b:
+        if(print_ns_rt): 
+            print(f"the father of {task.port} is {IP}:{port}")
+        if((not task.expected_final_father==0) and (not task.expected_final_father==port)):
+             print(f"wrong father saved in the snapshot file of {task.port}")
+             return False
+    return b
+    
 
 def final_test_check():
     print(f"task ready: {task_ready}\n")
