@@ -153,24 +153,31 @@ public class Main {
 
     private static void joinNetwork(){
 
-        SystemOutTS.print("Enter ip of the node you want to connect to: ");
-        String ip = retryInput(regexIp);
+        boolean done =false;
 
-        // Avoid error checking on the port for the moment
-        SystemOutTS.print("Enter port of the node you want to connect to: ");
-        int port = retryInputInteger();
+        while(!done){
+            try {
 
-        try {
-            JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
+                SystemOutTS.print("Enter ip of the node you want to connect to: ");
+                String ip = retryInput(regexIp);
 
-            // At this moment we have a new connection so we can do whatever we want
-            applicationLoop();
+                // Avoid error checking on the port for the moment
+                SystemOutTS.print("Enter port of the node you want to connect to: ");
+                int port = retryInputInteger();
 
-            // TODO: add more detailed exceptions
-        } catch (JavaDSException e) {
-            // The error output stream for the moment can be used without locks
-            System.err.println("We caught an exception! "+e.getMessage());
+                JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
+                done=true;
+            } catch (DSNodeUnreachableException e) {
+                // The error output stream for the moment can be used without locks
+                System.err.println("The node you are trying to contact is unreachable. Are you sure it is in the network?");
+            }
+            catch (DSMessageToMyselfException e) {
+                System.err.println("You cannot connect to yourself! Please try again.");
+            }
         }
+
+        // At this moment we have a new connection so we can do whatever we want
+        applicationLoop();
 
         // Exit from the application if an exception is raised
     }

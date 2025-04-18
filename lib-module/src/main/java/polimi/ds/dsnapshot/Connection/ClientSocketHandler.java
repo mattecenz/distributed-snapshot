@@ -175,7 +175,7 @@ public class ClientSocketHandler implements Runnable{
                 this.manager.receiveMessage(m, this);
             } catch (EOFException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "The channel has been forcefully closed from the other side.", e);
-                // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
+                // Initiate crash procedure
                 this.inAvailable.set(false);
             }catch (ClassNotFoundException e){
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);

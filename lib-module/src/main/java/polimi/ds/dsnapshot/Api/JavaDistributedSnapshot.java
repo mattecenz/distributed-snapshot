@@ -44,13 +44,9 @@ public class JavaDistributedSnapshot{
         LoggerManager.getInstance().mutableInfo("set application interface: " + applicationLayerInterface, Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
     }
 
-    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws JavaDSException {
-        try {
-            NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
-            connectionManager.joinNetwork(anchorNodeName);
-        } catch (IOException e) {
-            throw new JavaDSException(e.getMessage()); //todo: wrap messages
-        }
+    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws DSNodeUnreachableException, DSMessageToMyselfException {
+        NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
+        connectionManager.joinNetwork(anchorNodeName);
     }
 
     @TestOnly

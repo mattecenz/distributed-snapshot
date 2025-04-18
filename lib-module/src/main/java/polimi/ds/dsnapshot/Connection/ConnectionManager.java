@@ -227,21 +227,25 @@ public class ConnectionManager {
      * Establishes a connection to an anchor node in the network by creating a socket connection.
      * Sends a `JoinMsg` message to the specified node in order to initiate the join process.
      * @param anchorName name of the anchor node to connect to
-     * @throws IOException if an I/O error occurs during socket connection or communication
+     * @throws DSNodeUnreachableException if the node you are trying to join is unreachable (or it is not present)
+     * @throws DSMessageToMyselfException if I am trying to connect to myself
      */
-    public void joinNetwork(NodeName anchorName) throws IOException {
+    public void joinNetwork(NodeName anchorName) throws DSNodeUnreachableException, DSMessageToMyselfException {
+        if(anchorName.equals(this.name)) throw new DSMessageToMyselfException();
+
         JoinMsg msg = new JoinMsg(this.name);
         joinNetwork(anchorName,msg);
     }
 
-    private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws IOException {
-        Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
-        //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
-        ThreadPool.submit(handler);
-        //send join msg to anchor node & wait for ack
-
+    private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws DSNodeUnreachableException {
         try {
+
+            Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
+            //create socket for the anchor node, add to direct connection list and save as anchor node
+            ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
+            ThreadPool.submit(handler);
+            //send join msg to anchor node & wait for ack
+
             LoggerManager.getInstance().mutableInfo("Joining the network to anchor "+anchorName.getIP()+":"+anchorName.getPort(), Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
 
             // TODO: check potential error here
@@ -266,7 +270,14 @@ public class ConnectionManager {
             this.routingTable.addPath(anchorName, handler);
             // Start the ping pong with the handler
             handler.startPingPong(true);
-        } catch (ConnectionException e) {
+        }catch(ConnectException e){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "The node you are trying to connect to is unreachable!", e);
+            throw new DSNodeUnreachableException();
+        }
+        catch(IOException e){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+        }
+        catch (ConnectionException e) {
             //todo: ack not received
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Error waiting for ack:", e);
         } catch (RoutingTableNodeAlreadyPresentException e) {
@@ -531,13 +542,13 @@ public class ConnectionManager {
         this.newAnchorNodeEstablishDirectConnection(msg.getNewAnchorName());
     }
 
-    private void newAnchorNodeEstablishDirectConnection(NodeName nodeName) {
+    private void newAnchorNodeEstablishDirectConnection(NodeName nodeName)  {
         AdoptionRequestMsg msg = new AdoptionRequestMsg(this.name);
         ThreadPool.submit(()->{
             try {
                 this.joinNetwork(nodeName,msg);
-            } catch (IOException e) {
-                LoggerManager.instanceGetLogger().log(Level.SEVERE,"IOException when ensablish connection with new Anchor", e);
+            } catch (DSNodeUnreachableException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"Node unreachable when ensablish connection with new Anchor", e);
             }
         });
     }
