@@ -2,21 +2,23 @@ import subprocess
 import time
 import threading
 import os
+import glob
 import re
 import json
 import sys
 
 import javaobj
 
-task_ready = 0
 verify = True
-print_ns_rt = True
+print_ns_rt = False
 
+task_ready = 0
 jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
 #local_ip = "10.169.155.239"
 
 log_path = "./logOutput/"
+snapshot_path = "./snapshots/"
 
 snapshot_creators = []
 
@@ -93,9 +95,17 @@ def load_tasks_from_file(file_path, local_ip):
         tasks_data = json.load(f)
     return [Task.from_dict(task_data, local_ip) for task_data in tasks_data]
 
+def snapshot_remove(snapshot_path):
+    bin_files = glob.glob(os.path.join(snapshot_path, "*.bin"))
+    for file_path in bin_files:
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting {file_path}: {e}")
+
 def snapshot_exists(ip, port1, port2, extension=".bin"):
     pattern = re.compile(rf".*-{re.escape(ip)}-{port1}-{port2}_.*\{extension}$")
-    directory = "./snapshots/"
+    directory = snapshot_path
     
     if not os.path.isdir(directory):
         print("Directory snapshots non trovata!")
@@ -128,6 +138,14 @@ def read_snapshot(file_path, task):
                 else:
                     print('no routing table present in the snapshot')
                     return False
+                if hasattr(obj,'applicationState') and hasattr(obj,'messageInputStack'):
+                    application_state = obj.applicationState
+                    message_input_stack = obj.messageInputStack
+                    snapshot_cut_consistency_verification(application_state, message_input_stack, task)
+                else:
+                    print('no application state or message input stack present in the snapshot')
+                    return False
+            
 
 
             except Exception as e:
@@ -137,6 +155,45 @@ def read_snapshot(file_path, task):
             print("the snapshot isn't a 'JavaObject'.")
             return False
     return True
+
+def snapshot_cut_consistency_verification(application_state, message_input_stack, task):
+    #print(f"{application_state} \n{message_input_stack} ")
+
+    messages = []
+    messages.extend(parse_application_state(application_state, task))
+    messages.extend(parse_message_input_stack(message_input_stack, task))
+    
+    if print_ns_rt: print(messages)
+
+def parse_application_state(application_state, task):
+    if isinstance(application_state, javaobj.JavaObject):
+        try:
+            if hasattr(application_state, 'messageHistory'):
+                messageHistory = application_state.messageHistory
+                return messageHistory
+        except Exception as e:
+            print(f"Error while parsing java obj: {e}")
+            return []
+    else:
+        print(f"the application_state of {task.port} isn't a 'JavaObject'.")  
+        return []
+    return []
+
+def parse_message_input_stack(message_input_stack, task):
+    if isinstance(message_input_stack, javaobj.JavaObject):
+        try:
+            if hasattr(message_input_stack, 'elementData'):
+                stack_elements = message_input_stack.elementData
+                return [e for e in stack_elements if e is not None]
+            else:
+                print(f"'elementData' attribute not found in message_input_stack for task {task.port}.")
+                return []
+        except Exception as e:
+            print(f"Error while parsing stack for task {task.port}: {e}")
+            return []
+    else:
+        print(f"The message_input_stack of {task.port} isn't a 'JavaObject'.")  
+
 
 def snapshot_verify_rt(routing_table, task):
     destinations = []
@@ -185,7 +242,6 @@ def snapshot_verify_rt(routing_table, task):
         
     return True
    
-
 def snapshot_print_rt(keys,values,task):
     print ("\n")
     print(f"###################### start rt of {task.port}  ###################### ")
@@ -197,7 +253,6 @@ def snapshot_print_rt(keys,values,task):
     print(f"###################### end rt of {task.port}  ###################### ")
     print ("\n")
             
-
 def nodeName_pars(node_name):
     if isinstance(node_name, javaobj.JavaObject):
         try:
@@ -209,7 +264,6 @@ def nodeName_pars(node_name):
             print(f"Error while parsing java obj: {e}")
     return False,None,None
                    
-
 def snapshot_verify_anchor(anchor_node, task):
     if(task.expected_final_father==0): return True
 
@@ -222,7 +276,6 @@ def snapshot_verify_anchor(anchor_node, task):
              return False
     return b
     
-
 def final_test_check():
     print(f"task ready: {task_ready}\n")
     if(task_ready!=len(tasks)):
@@ -263,7 +316,6 @@ def check_log_for_severe(path, filename):
     except FileNotFoundError:
         print(f"File non trovato: {full_path}")
         return False
-
 
 def task_handler(cmd,task, testVerify):
     global task_ready
@@ -347,12 +399,13 @@ def task_handler(cmd,task, testVerify):
         # Stampa l'output per il debug
         print("stderr:", stderr)
 
-
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python script.py <path_to_tasks_file> <local_ip>")
         sys.exit(1)
     
+    snapshot_remove(snapshot_path)
+
     tasks_file_path = sys.argv[1]
     local_ip = sys.argv[2]  # Get the local_ip from the command line argument
     tasks = load_tasks_from_file(tasks_file_path, local_ip)
