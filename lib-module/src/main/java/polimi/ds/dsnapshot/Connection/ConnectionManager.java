@@ -71,9 +71,9 @@ public class ConnectionManager {
      * Constructor of the connection manager
      * @param ip ip of the client (useful for naming purposes)
      * @param port port of the client where the socket is opened
-     * @throws DSPortAlreadyInUseException if the port is already used by someone else
+     * @throws DSException DSPortAlreadyInUseException, if the port is already used by someone else
      */
-    public ConnectionManager(String ip, int port) throws DSPortAlreadyInUseException{
+    public ConnectionManager(String ip, int port) throws DSException{
         this.unNamedHandlerList = new ArrayList<>();
         this.handlerList = new ArrayList<>();
         this.ackHandler = new AckHandler();
@@ -112,7 +112,7 @@ public class ConnectionManager {
         return name;
     }
 
-    public void start() throws DSPortAlreadyInUseException{
+    public void start(){
         LoggerManager.getInstance().mutableInfo("Preparing the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
         // This start has to launch another thread.
@@ -227,17 +227,16 @@ public class ConnectionManager {
      * Establishes a connection to an anchor node in the network by creating a socket connection.
      * Sends a `JoinMsg` message to the specified node in order to initiate the join process.
      * @param anchorName name of the anchor node to connect to
-     * @throws DSNodeUnreachableException if the node you are trying to join is unreachable (or it is not present)
-     * @throws DSMessageToMyselfException if I am trying to connect to myself
+     * @throws DSException if something unexpected has happened (either DSMessageToMyselfException or DSNodeUnreachableException)
      */
-    public void joinNetwork(NodeName anchorName) throws DSNodeUnreachableException, DSMessageToMyselfException {
+    public void joinNetwork(NodeName anchorName) throws DSException {
         if(anchorName.equals(this.name)) throw new DSMessageToMyselfException();
 
         JoinMsg msg = new JoinMsg(this.name);
         joinNetwork(anchorName,msg);
     }
 
-    private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws DSNodeUnreachableException {
+    private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws DSException {
         try {
 
             Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
@@ -419,7 +418,7 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    public synchronized void exitNetwork() throws IOException{
+    public synchronized void exitNetwork() {
         LoggerManager.getInstance().mutableInfo("Exit procedure started", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
 
         //stop children ping pong
@@ -547,7 +546,7 @@ public class ConnectionManager {
         ThreadPool.submit(()->{
             try {
                 this.joinNetwork(nodeName,msg);
-            } catch (DSNodeUnreachableException e) {
+            } catch (DSException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE,"Node unreachable when ensablish connection with new Anchor", e);
             }
         });
@@ -629,13 +628,13 @@ public class ConnectionManager {
         return ok;
     }
 
-    public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSNodeUnreachableException, DSMessageToMyselfException{
+    public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSException{
         if(destinationNodeName.equals(this.name)) throw new DSMessageToMyselfException();
         ApplicationMessage message = new ApplicationMessage(content, this.name, destinationNodeName);
         this.forwardMessage(message, destinationNodeName);
     }
 
-    private void forwardMessage(Message message, NodeName destinationNodeName) throws DSNodeUnreachableException{
+    private void forwardMessage(Message message, NodeName destinationNodeName) throws DSException{
         try {
             ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
             handler.sendMessage(message);
@@ -657,8 +656,9 @@ public class ConnectionManager {
     /**
      * Method invoked when we need to discover if a node is present in the network
      * @param destinationNodeName name of the node to discover
+     * @throws DSException DSNodeUnreachableException, means the node was not found during the discovery process
      */
-    private void sendDiscoveryMessage(NodeName destinationNodeName) throws DSNodeUnreachableException{
+    private void sendDiscoveryMessage(NodeName destinationNodeName) throws DSException{
         MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
 
         boolean ok = this.forwardMessageAlongSPT(msgd, Optional.empty());
@@ -769,7 +769,7 @@ public class ConnectionManager {
                 }else{
                     try {
                         this.forwardMessage(m,app.getReceiver());
-                    } catch (DSNodeUnreachableException e) {
+                    } catch (DSException e) {
                         LoggerManager.instanceGetLogger().log(Level.SEVERE, "The message is trying to be routed towards an unreachable node (PS:we should not be here): ", e);
                     }
                 }

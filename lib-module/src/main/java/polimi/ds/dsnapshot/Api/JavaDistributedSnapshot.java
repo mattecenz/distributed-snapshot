@@ -8,7 +8,7 @@ import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
 import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
 import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
-import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Exception.DSException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -33,7 +33,7 @@ public class JavaDistributedSnapshot{
         return instance;
     }
 
-    public void startSocketConnection(String ip, int hostPort, ApplicationLayerInterface applicationLayerInterface) throws DSPortAlreadyInUseException {
+    public void startSocketConnection(String ip, int hostPort, ApplicationLayerInterface applicationLayerInterface) throws DSException {
         //start log
         LoggerManager.start(hostPort);
 
@@ -44,7 +44,7 @@ public class JavaDistributedSnapshot{
         LoggerManager.getInstance().mutableInfo("set application interface: " + applicationLayerInterface, Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
     }
 
-    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws DSNodeUnreachableException, DSMessageToMyselfException {
+    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws DSException {
         NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
         connectionManager.joinNetwork(anchorNodeName);
     }
@@ -58,20 +58,16 @@ public class JavaDistributedSnapshot{
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
     }
 
-    public void leaveNetwork() throws JavaDSException{
+    public void leaveNetwork() {
         applicationLayerInterface = null;
-        try {
-            connectionManager.exitNetwork();
-        } catch (IOException e) {
-            throw new JavaDSException(e.getMessage()); //todo: wrap messages
-        }
+        connectionManager.exitNetwork();
     }
 
     public void applicationExitNotify(NodeName nodeName){
         applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
     }
 
-    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSNodeUnreachableException, DSMessageToMyselfException {
+    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
         connectionManager.sendMessage(messageContent, destinationNodeName);

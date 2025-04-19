@@ -16,10 +16,10 @@ import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Connection.SpanningTree;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
+import polimi.ds.dsnapshot.Exception.DSException;
 import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
 import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
 import polimi.ds.dsnapshot.Exception.EventException;
-import polimi.ds.dsnapshot.Exception.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
@@ -60,7 +60,7 @@ public class SnapshotTest {
     }
 
     @Test
-    public void SnapshotNoMessagesTest() throws DSNodeUnreachableException, DSMessageToMyselfException, InterruptedException {
+    public void SnapshotNoMessagesTest() throws DSException, InterruptedException {
         NodeName name = new NodeName("friggeri",0);
         when(connectionManagerMock.getName()).thenReturn(name);
 
@@ -115,7 +115,7 @@ public class SnapshotTest {
     }
 
     @Test
-    public void SnapshotWIthMessagesTest() throws DSNodeUnreachableException, DSMessageToMyselfException, EventException, InterruptedException {
+    public void SnapshotWIthMessagesTest() throws DSException, EventException, InterruptedException {
         //input messages
         List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
         List<String> n1Messages = Arrays.asList("6","7","8","9","T","10","11");
@@ -129,7 +129,7 @@ public class SnapshotTest {
 
 
     @Test
-    public void SnapshotWIthMessagesTest2() throws DSNodeUnreachableException, DSMessageToMyselfException, EventException, InterruptedException {
+    public void SnapshotWIthMessagesTest2() throws DSException, EventException, InterruptedException {
         //input messages
         List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
         List<String> n1Messages = Arrays.asList("T","10","11");
@@ -142,7 +142,7 @@ public class SnapshotTest {
     }
 
     @Test
-    public void SnapshotWIthMessagesTest3() throws DSNodeUnreachableException, DSMessageToMyselfException, EventException, InterruptedException {
+    public void SnapshotWIthMessagesTest3() throws DSException, EventException, InterruptedException {
         //input messages
         List<String> snapshotStarterMessages = Arrays.asList("1","T","2","3");
         List<String> n1Messages = Arrays.asList("6","7","8","9","T","10","11");
@@ -155,7 +155,7 @@ public class SnapshotTest {
     }
 
 
-    private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, DSNodeUnreachableException, DSMessageToMyselfException, EventException {
+    private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, DSException, EventException {
         NodeName name = new NodeName("friggeri",port);
         when(connectionManagerMock.getName()).thenReturn(name);
 

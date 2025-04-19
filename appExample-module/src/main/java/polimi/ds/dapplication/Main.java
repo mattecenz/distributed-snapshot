@@ -4,10 +4,9 @@ import polimi.ds.dapplication.Message.StringMessage;
 import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
 import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
 import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
-import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Exception.DSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
-import java.io.IOException;
 import java.util.Scanner;
 
 public class Main {
@@ -87,6 +86,8 @@ public class Main {
             System.err.println("The client you tried to contact is unreachable. Are you sure it is in the network?");
         } catch (DSMessageToMyselfException e) {
             SystemOutTS.println("You are sending a message to yourself, try choosing another destination.");
+        } catch (DSException e) {
+            System.err.println("Generic DS exception: " + e.getMessage());
         }
     }
 
@@ -107,12 +108,7 @@ public class Main {
                         sendMessage();
                     }
                     case "exit" -> {
-                        // TODO is this correct ?
-                        try {
-                            JavaDistributedSnapshot.getInstance().leaveNetwork();
-                        } catch (JavaDSException e) {
-                            System.err.println("The library threw a JavaDSException: " + e.getMessage());
-                        }
+                        JavaDistributedSnapshot.getInstance().leaveNetwork();
                         finished=true;
                     }
                     case "snapshot" ->{
@@ -173,6 +169,8 @@ public class Main {
             }
             catch (DSMessageToMyselfException e) {
                 System.err.println("You cannot connect to yourself! Please try again.");
+            } catch (DSException e) {
+                System.err.println("Generic DS exception: " + e.getMessage());
             }
         }
 
@@ -195,6 +193,8 @@ public class Main {
         } catch (DSPortAlreadyInUseException e) {
             System.err.println("The port you entered is already in use on this machine, choose another one.");
             return;
+        } catch (DSException e) {
+            System.err.println("Generic DS exception: " + e.getMessage());
         }
 
         // Ask the client if he wants to join a network or not
