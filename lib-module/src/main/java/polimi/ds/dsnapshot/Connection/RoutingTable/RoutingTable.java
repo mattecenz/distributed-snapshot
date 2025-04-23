@@ -178,7 +178,7 @@ public class RoutingTable implements Serializable {
         //TODO
     }
 
-    public synchronized boolean SerializedValidation(SerializableRoutingTable serializableRoutingTable, List<NodeName> ignoredList){
+    public synchronized boolean serializedValidation(SerializableRoutingTable serializableRoutingTable, List<NodeName> ignoredList){
         Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         if (oldRoutingTableFieldsDict == null && !routingTableFields.isEmpty()) return false;
         else if (oldRoutingTableFieldsDict == null && routingTableFields.isEmpty()) return true;

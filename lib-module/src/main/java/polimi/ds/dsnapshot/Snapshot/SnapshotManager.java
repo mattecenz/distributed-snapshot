@@ -181,7 +181,7 @@ public class SnapshotManager {
         //validate direct connection in the routing table
         List<NodeName> ignoredList = new ArrayList<>();
         ignoredList.add(resetSnapshotRequest.getSnapshotIdentifier().getSnapshotCreatorName());
-        if(!connectionManager.getRoutingTable().SerializedValidation(state.getRoutingTable(),ignoredList)) {
+        if(!connectionManager.getRoutingTable().serializedValidation(state.getRoutingTable(),ignoredList)) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent routing table");
             return false;
         }
