@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequestAgreementResult;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotResponse;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.TokenMessage;
 import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
@@ -30,7 +31,9 @@ import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
+import polimi.ds.dsnapshot.Snapshot.SnapshotPendingRequestManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
@@ -55,7 +58,8 @@ public class ConnectionManager {
      */
     private final RoutingTable routingTable = new RoutingTable();
     private final SpanningTree spt = new SpanningTree();
-    private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
+    private final SnapshotManager snapshotManager = new SnapshotManager(this);
+    private SnapshotPendingRequestManager snapshotPendingRequestManager = null;
     /**
      * Reference to the handler of the acks
      */
@@ -575,9 +579,11 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="restore Snapshot procedure">
-    public void startSnapshotRestoreProcedure(String snapshotId, String snapshotIp, int snapshotPort){
-        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIp,snapshotPort,snapshotId);
-        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotId,snapshotIp,snapshotPort)) return; //TODO: notify client on the snapshot restore fail (error motivations in log)
+    public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier){
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
+        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier)) return; //TODO: notify client on the snapshot restore fail (error motivations in log)
+
+        snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.empty(), snapshotIdentifier);
         forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
     }
 
@@ -590,9 +596,49 @@ public class ConnectionManager {
             return;
         }
 
+        snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.ofNullable(sender), restoreSnapshotRequest.getSnapshotIdentifier());
         forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
     }
-    // </editor-fold>
+
+    private synchronized void receiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler){
+        if(snapshotPendingRequestManager == null) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"No snapshotPendingRequestManager, skipping.");
+            return;
+        }
+        try {
+            if(snapshotPendingRequestManager.isNodeSnapshotLeader(restoreSnapshotResponse.getSnapshotIdentifier())){
+                this.leaderReceiveSnapshotRestoreResponse(restoreSnapshotResponse,handler);
+                return;
+            }
+
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
+                //all pending request has been received
+                //or receive an invalid response => I can forward to the leader without waiting for other requests
+                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
+                snapshotPendingRequestManager = null;
+            }
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
+    }
+
+    private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
+        try {
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
+                RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
+                forwardMessageAlongSPT(result, Optional.empty());
+                snapshotPendingRequestManager = null;
+                return;
+            }
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
+
+    }
+
+        // </editor-fold>
 
     /**
      * Method used for forwarding a message not contained in the routing table.
@@ -841,6 +887,10 @@ public class ConnectionManager {
             case SNAPSHOT_RESET_REQUEST -> {
                 RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
                 this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);
+            }
+            case SNAPSHOT_RESET_RESPONSE ->{
+                RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
+                this.receiveSnapshotRestoreResponse(restoreSnapshotResponse, handler);
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));

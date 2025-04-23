@@ -7,7 +7,7 @@ public class RestoreSnapshotResponse extends RestoreSnapshotRequest{
     private final boolean snapshotValid;
 
     public RestoreSnapshotResponse(RestoreSnapshotRequest restoreSnapshotRequest,boolean snapshotValid) {
-        super(restoreSnapshotRequest.getCreatorIp(), restoreSnapshotRequest.getCreatorPort(), restoreSnapshotRequest.getSnapshotId(), MessageID.SNAPSHOT_RESET_RESPONSE);
+        super(restoreSnapshotRequest.getSnapshotIdentifier(), MessageID.SNAPSHOT_RESET_RESPONSE);
         this.snapshotValid = snapshotValid;
     }
 

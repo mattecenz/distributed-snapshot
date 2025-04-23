@@ -2,35 +2,22 @@ package polimi.ds.dsnapshot.Connection.Messages.Snapshot;
 
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Connection.Messages.MessageID;
+import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 
 public class RestoreSnapshotRequest extends Message {
-    private final int creatorPort;
-    private final String creatorIp;
-    private final String snapshotId;
+    private final SnapshotIdentifier snapshotIdentifier;
 
-    public RestoreSnapshotRequest(String creatorIp , int creatorPort, String snapshotId) {
+    public RestoreSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
         super(MessageID.SNAPSHOT_RESET_REQUEST,false); //TODO: require ack?
-        this.creatorPort = creatorPort;
-        this.creatorIp = creatorIp;
-        this.snapshotId = snapshotId;
+        this.snapshotIdentifier = snapshotIdentifier;
     }
 
-    protected RestoreSnapshotRequest(String creatorIp , int creatorPort, String snapshotId, MessageID messageID) {
+    protected RestoreSnapshotRequest(SnapshotIdentifier snapshotIdentifier, MessageID messageID) {
         super(messageID,false); //TODO: require ack?
-        this.creatorPort = creatorPort;
-        this.creatorIp = creatorIp;
-        this.snapshotId = snapshotId;
+        this.snapshotIdentifier = snapshotIdentifier;
     }
 
-    public int getCreatorPort() {
-        return creatorPort;
-    }
-
-    public String getSnapshotId() {
-        return snapshotId;
-    }
-
-    public String getCreatorIp() {
-        return creatorIp;
+    public SnapshotIdentifier getSnapshotIdentifier() {
+        return snapshotIdentifier;
     }
 }

@@ -6,6 +6,7 @@ import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -96,6 +97,7 @@ public class JavaDistributedSnapshot{
     }
 
     public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort){
-        connectionManager.startSnapshotRestoreProcedure(snapshotId, snapshotIp, snapshotPort);
+        SnapshotIdentifier snapshotIdentifier = new SnapshotIdentifier(new NodeName(snapshotIp,snapshotPort),snapshotId);
+        connectionManager.startSnapshotRestoreProcedure(snapshotIdentifier);
     }
 }

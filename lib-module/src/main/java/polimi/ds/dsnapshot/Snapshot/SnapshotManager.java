@@ -29,7 +29,7 @@ public class SnapshotManager {
 
     private static final String snapshotPath = Config.getString("snapshot.path");
 
-    private Map<NodeName,SnapshotState> lastSnapshotState = new Hashtable<>(); //creator port as key
+    private Map<SnapshotIdentifier,SnapshotState> lastSnapshotState = new Hashtable<>(); //creator port as key
 
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
@@ -120,15 +120,14 @@ public class SnapshotManager {
     // </editor-fold>
 
     // <editor-fold desc="restore Snapshot procedure">
-    public synchronized boolean reEnteringNodeValidateSnapshotRequest(String snapshotId, String snapshotIp, int snapshotPort) {
+    public synchronized boolean reEnteringNodeValidateSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
         LoggerManager.getInstance().mutableInfo("starting validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
         if (!lastSnapshotState.isEmpty()) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
             return false;
         }
 
-        NodeName snapshotCreator = new NodeName(snapshotIp, snapshotPort);
-        File file = getLastSnapshotFile(snapshotId,snapshotPort, snapshotIp, this.connectionManager.getName().getPort());
+        File file = getLastSnapshotFile(snapshotIdentifier, this.connectionManager.getName().getPort());
         SnapshotState state = null;
 
         if(file != null){
@@ -141,7 +140,7 @@ public class SnapshotManager {
             return false;
         }
 
-        lastSnapshotState.put(snapshotCreator, state);
+        lastSnapshotState.put(snapshotIdentifier, state);
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
         return true;
     }
@@ -152,9 +151,7 @@ public class SnapshotManager {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
             return false;
         }
-
-        NodeName snapshotCreator = new NodeName(resetSnapshotRequest.getCreatorIp(), resetSnapshotRequest.getCreatorPort());
-        File file = getLastSnapshotFile(resetSnapshotRequest.getSnapshotId(),resetSnapshotRequest.getCreatorPort(), resetSnapshotRequest.getCreatorIp(), this.connectionManager.getName().getPort());
+        File file = getLastSnapshotFile(resetSnapshotRequest.getSnapshotIdentifier(), this.connectionManager.getName().getPort());
         SnapshotState state = null;
 
         if(file != null){
@@ -186,20 +183,20 @@ public class SnapshotManager {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent routing table");
             return false;
         }
-        lastSnapshotState.put(snapshotCreator, state);
+        lastSnapshotState.put(resetSnapshotRequest.getSnapshotIdentifier(), state);
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
         return true;
     }
     // </editor-fold>
 
 
-    private File getLastSnapshotFile(String snapshotId, int creatorPort, String creatorIp, int hostPort){
+    private File getLastSnapshotFile(SnapshotIdentifier snapshotIdentifier, int hostPort){
         File snapshotsDir = new File(snapshotPath);
 
         // List all files in the directory that match the pattern
         File[] files = snapshotsDir.listFiles((dir, name) ->
                 name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
-                        name.contains(snapshotId + "-" + creatorIp + "-" + creatorPort+"-" + hostPort + "_")
+                        name.contains(snapshotIdentifier.getSnapshotId() + "-" + snapshotIdentifier.getSnapshotCreatorName().getIP() + "-" + snapshotIdentifier.getSnapshotCreatorName().getPort()+"-" + hostPort + "_")
         );
 
         if (files == null || files.length == 0) {
