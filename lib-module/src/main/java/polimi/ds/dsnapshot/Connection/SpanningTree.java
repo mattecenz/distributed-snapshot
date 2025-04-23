@@ -105,5 +105,8 @@ public class SpanningTree {
         this.children.remove(child);
     }
 
-
+    public synchronized boolean isNodeLeaf(){
+        if(this.anchorNodeHandler.isEmpty() && this.children.size() == 1) return true;
+        return this.children.isEmpty();
+    }
 }

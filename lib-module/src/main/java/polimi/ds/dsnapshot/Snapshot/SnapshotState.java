@@ -38,4 +38,12 @@ public class SnapshotState implements Serializable {
     public Serializable getApplicationState() {
         return applicationState;
     }
+
+    public NodeName getAnchorNode() {
+        return anchorNode;
+    }
+
+    public SerializableRoutingTable getRoutingTable() {
+        return routingTable;
+    }
 }

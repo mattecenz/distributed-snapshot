@@ -1,12 +1,13 @@
 package polimi.ds.dsnapshot.Snapshot;
 
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
-import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -28,6 +29,8 @@ public class SnapshotManager {
 
     private static final String snapshotPath = Config.getString("snapshot.path");
 
+    private Map<NodeName,SnapshotState> lastSnapshotState = new Hashtable<>(); //creator port as key
+
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
         File directory = new File(snapshotPath);
@@ -42,6 +45,7 @@ public class SnapshotManager {
         }
     }
 
+    // <editor-fold desc="Snapshot procedure">
     public synchronized boolean manageSnapshotToken(String snapshotCode, NodeName channelName) {
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
@@ -86,25 +90,7 @@ public class SnapshotManager {
         }
         return state;
     }
-    private File getLastSnapshotFile(int hostPort){
-        File snapshotsDir = new File(snapshotPath);
 
-        // List all files in the directory that match the pattern
-        File[] files = snapshotsDir.listFiles((dir, name) ->
-                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
-                name.contains("-" + hostPort + "_")
-        );
-
-        if (files == null || files.length == 0) {
-            return null; // No files found
-        }
-
-        // Sort files based on timestamp in their names
-        File file = Arrays.stream(files)
-                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
-                .orElse(null);
-        return file;
-    }
 
     private SnapshotState parseSnapshotFile(File file) {
         byte[] fileContent;
@@ -131,8 +117,121 @@ public class SnapshotManager {
         LocalDateTime localDateTime = LocalDateTime.parse(timestampStr, formatter);
         return ZonedDateTime.of(localDateTime, ZoneId.systemDefault());
     }
+    // </editor-fold>
+
+    // <editor-fold desc="restore Snapshot procedure">
+    public synchronized boolean reEnteringNodeValidateSnapshotRequest(String snapshotId, String snapshotIp, int snapshotPort) {
+        LoggerManager.getInstance().mutableInfo("starting validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
+        if (!lastSnapshotState.isEmpty()) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
+            return false;
+        }
+
+        NodeName snapshotCreator = new NodeName(snapshotIp, snapshotPort);
+        File file = getLastSnapshotFile(snapshotId,snapshotPort, snapshotIp, this.connectionManager.getName().getPort());
+        SnapshotState state = null;
+
+        if(file != null){
+            state = parseSnapshotFile(file);
+        }
+
+        //no snapshot file found
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, snapshot file can't be found");
+            return false;
+        }
+
+        lastSnapshotState.put(snapshotCreator, state);
+        LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
+        return true;
+    }
+
+    public synchronized boolean validateSnapshotRequest(RestoreSnapshotRequest resetSnapshotRequest) {
+        LoggerManager.getInstance().mutableInfo("starting validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
+        if (!lastSnapshotState.isEmpty()) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
+            return false;
+        }
+
+        NodeName snapshotCreator = new NodeName(resetSnapshotRequest.getCreatorIp(), resetSnapshotRequest.getCreatorPort());
+        File file = getLastSnapshotFile(resetSnapshotRequest.getSnapshotId(),resetSnapshotRequest.getCreatorPort(), resetSnapshotRequest.getCreatorIp(), this.connectionManager.getName().getPort());
+        SnapshotState state = null;
+
+        if(file != null){
+            state = parseSnapshotFile(file);
+        }
+
+        //no snapshot file found
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, snapshot file can't be found");
+            return false;
+        }
+
+        //validate anchor node
+        try {
+            if(state.getAnchorNode()!= null && !Objects.equals(state.getAnchorNode(), connectionManager.getSpt().getAnchorNodeHandler().getRemoteNodeName())){
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent anchor node");
+                return false;
+            }
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            LoggerManager.getInstance().mutableInfo("current anchor node is null", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
+            if(state.getAnchorNode()!= null) {//TODO: probably  duplicated
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent anchor node");
+                return false;
+            }
+        }
+
+        //validate direct connection in the routing table
+        if(!connectionManager.getRoutingTable().SerializedValidation(state.getRoutingTable())) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent routing table");
+            return false;
+        }
+        lastSnapshotState.put(snapshotCreator, state);
+        LoggerManager.getInstance().mutableInfo("success in validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
+        return true;
+    }
+    // </editor-fold>
 
 
+    private File getLastSnapshotFile(String snapshotId, int creatorPort, String creatorIp, int hostPort){
+        File snapshotsDir = new File(snapshotPath);
+
+        // List all files in the directory that match the pattern
+        File[] files = snapshotsDir.listFiles((dir, name) ->
+                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
+                        name.contains(snapshotId + "-" + creatorIp + "-" + creatorPort+"-" + hostPort + "_")
+        );
+
+        if (files == null || files.length == 0) {
+            return null; // No files found
+        }
+
+        // Sort files based on timestamp in their names
+        File file = Arrays.stream(files)
+                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
+                .orElse(null);
+        return file;
+    }
+
+    private File getLastSnapshotFile(int hostPort){
+        File snapshotsDir = new File(snapshotPath);
+
+        // List all files in the directory that match the pattern
+        File[] files = snapshotsDir.listFiles((dir, name) ->
+                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
+                        name.contains("-" + hostPort + "_")
+        );
+
+        if (files == null || files.length == 0) {
+            return null; // No files found
+        }
+
+        // Sort files based on timestamp in their names
+        File file = Arrays.stream(files)
+                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
+                .orElse(null);
+        return file;
+    }
 
 
 

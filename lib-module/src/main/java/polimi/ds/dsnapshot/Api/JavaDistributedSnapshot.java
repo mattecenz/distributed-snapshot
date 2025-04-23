@@ -94,5 +94,8 @@ public class JavaDistributedSnapshot{
     public void startNewSnapshot(){
         connectionManager.startNewSnapshot();
     }
-    // public void sendMessage()
+
+    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort){
+        connectionManager.startSnapshotRestoreProcedure(snapshotId, snapshotIp, snapshotPort);
+    }
 }

@@ -5,12 +5,11 @@ import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import java.io.Serializable;
-import java.util.Dictionary;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * Internal routing table of the connection manager.
@@ -20,7 +19,7 @@ public class RoutingTable implements Serializable {
     /**
      * Internal dictionary of the form: (node name, client socket handler).
      */
-    private Dictionary<NodeName, ClientSocketHandler> routingTableFields;
+    private final Dictionary<NodeName, ClientSocketHandler> routingTableFields;
 
     /**
      * Explicit copy constructor of a routing table
@@ -173,6 +172,29 @@ public class RoutingTable implements Serializable {
 
     public synchronized SerializableRoutingTable toSerialize(){
         return new SerializableRoutingTable(routingTableFields);
+    }
+
+    public synchronized void fromSerialize(SerializableRoutingTable serializableRoutingTable){
+        //TODO
+    }
+
+    public synchronized boolean SerializedValidation(SerializableRoutingTable serializableRoutingTable){
+        Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
+        if (oldRoutingTableFieldsDict == null && !routingTableFields.isEmpty()) return false;
+        else if (oldRoutingTableFieldsDict == null && routingTableFields.isEmpty()) return true;
+
+        //check if the serializableRoutingTable is still valid for the current node
+        // => if all direct connection in serializableRoutingTable are still present in the current routing table
+
+        Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            NodeName value = oldRoutingTableFieldsDict.get(key);
+            if(routingTableFields.get(key) == null) return false;
+            if(!value.equals(routingTableFields.get(key).getRemoteNodeName())) return false;
+        }
+
+        return true;
     }
 }
 

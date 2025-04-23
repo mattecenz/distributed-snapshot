@@ -7,6 +7,9 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotResponse;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.TokenMessage;
 import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Exception.*;
 
@@ -571,6 +574,26 @@ public class ConnectionManager {
     }
     // </editor-fold>
 
+    // <editor-fold desc="restore Snapshot procedure">
+    public void startSnapshotRestoreProcedure(String snapshotId, String snapshotIp, int snapshotPort){
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIp,snapshotPort,snapshotId);
+        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotId,snapshotIp,snapshotPort)) return; //TODO: notify client on the snapshot restore fail (error motivations in log)
+        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
+    }
+
+    private synchronized void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
+        boolean snapshotValid = snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
+        RestoreSnapshotResponse restoreSnapshotResponse = new RestoreSnapshotResponse(restoreSnapshotRequest, snapshotValid);
+
+        if(!snapshotValid || this.spt.isNodeLeaf()) {
+            sender.sendMessage(restoreSnapshotResponse);
+            return;
+        }
+
+        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
+    }
+    // </editor-fold>
+
     /**
      * Method used for forwarding a message not contained in the routing table.
      * It sends the message along all paths of the spanning tree saved
@@ -814,6 +837,10 @@ public class ConnectionManager {
 
                     this.forwardMessageAlongSPT(msgdr, Optional.of(handler));
                 }
+            }
+            case SNAPSHOT_RESET_REQUEST -> {
+                RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
+                this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
