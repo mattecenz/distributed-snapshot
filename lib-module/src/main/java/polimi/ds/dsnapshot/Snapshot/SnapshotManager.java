@@ -172,14 +172,16 @@ public class SnapshotManager {
             }
         } catch (SpanningTreeNoAnchorNodeException e) {
             LoggerManager.getInstance().mutableInfo("current anchor node is null", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
-            if(state.getAnchorNode()!= null) {//TODO: probably  duplicated
+            if(state.getAnchorNode()!= null && !state.getAnchorNode().equals(resetSnapshotRequest.getSnapshotIdentifier().getSnapshotCreatorName())) { //the current anchor node can be null if the current node is child of the re-entering node
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent anchor node");
                 return false;
             }
         }
 
         //validate direct connection in the routing table
-        if(!connectionManager.getRoutingTable().SerializedValidation(state.getRoutingTable())) {
+        List<NodeName> ignoredList = new ArrayList<>();
+        ignoredList.add(resetSnapshotRequest.getSnapshotIdentifier().getSnapshotCreatorName());
+        if(!connectionManager.getRoutingTable().SerializedValidation(state.getRoutingTable(),ignoredList)) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent routing table");
             return false;
         }

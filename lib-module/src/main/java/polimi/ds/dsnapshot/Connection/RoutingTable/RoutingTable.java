@@ -178,7 +178,7 @@ public class RoutingTable implements Serializable {
         //TODO
     }
 
-    public synchronized boolean SerializedValidation(SerializableRoutingTable serializableRoutingTable){
+    public synchronized boolean SerializedValidation(SerializableRoutingTable serializableRoutingTable, List<NodeName> ignoredList){
         Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         if (oldRoutingTableFieldsDict == null && !routingTableFields.isEmpty()) return false;
         else if (oldRoutingTableFieldsDict == null && routingTableFields.isEmpty()) return true;
@@ -186,12 +186,27 @@ public class RoutingTable implements Serializable {
         //check if the serializableRoutingTable is still valid for the current node
         // => if all direct connection in serializableRoutingTable are still present in the current routing table
 
+        //verify that all the direct connection are still present in the new routing table
         Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
+            if(ignoredList.contains(key))continue; //used to ignore the re-entering node in  the validation
             NodeName value = oldRoutingTableFieldsDict.get(key);
-            if(routingTableFields.get(key) == null) return false;
-            if(!value.equals(routingTableFields.get(key).getRemoteNodeName())) return false;
+            if(key.equals(value)) {
+                if(routingTableFields.get(key) == null || !value.equals(routingTableFields.get(key).getRemoteNodeName())) return false;
+            }
+        }
+
+        //verify that there are no new connection in the current routing table
+        keys = routingTableFields.keys();
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            if(ignoredList.contains(key))continue; //used to ignore the re-entering node in  the validation
+            NodeName value = routingTableFields.get(key).getRemoteNodeName();
+
+            if(key.equals(value)) {
+                if (oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key))) return false;
+            }
         }
 
         return true;
