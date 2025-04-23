@@ -623,7 +623,7 @@ public class ConnectionManager {
         }
     }
 
-    private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
+    private void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
         try {
             if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
                 RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
@@ -638,7 +638,17 @@ public class ConnectionManager {
 
     }
 
-        // </editor-fold>
+    private void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
+        snapshotPendingRequestManager = null;
+        forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
+        if(agreementResult.getAgreementResult())restoreSnapshot(agreementResult.getSnapshotIdentifier());
+    }
+
+    private void restoreSnapshot(SnapshotIdentifier snapshotIdentifier){
+        //TODO
+    }
+
+    // </editor-fold>
 
     /**
      * Method used for forwarding a message not contained in the routing table.
@@ -891,6 +901,10 @@ public class ConnectionManager {
             case SNAPSHOT_RESET_RESPONSE ->{
                 RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
                 this.receiveSnapshotRestoreResponse(restoreSnapshotResponse, handler);
+            }
+            case SNAPSHOT_RESET_AGREEMENT -> {
+                RestoreSnapshotRequestAgreementResult result = (RestoreSnapshotRequestAgreementResult) m;
+                this.receiveAgreementResult(result, handler);
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
