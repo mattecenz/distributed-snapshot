@@ -41,6 +41,11 @@ public class AppUtility implements ApplicationLayerInterface {
     }
 
     @Override
+    public void setApplicationState(Serializable appState) {
+        //TODO
+    }
+
+    @Override
     public void exitNotify(String ip, int port) {
         SystemOutTS.println("A node has left the network: " + ip + ":" + port);
     }

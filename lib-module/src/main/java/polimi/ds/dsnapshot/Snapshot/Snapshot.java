@@ -37,7 +37,7 @@ public class Snapshot {
 
     private final List<Event> inputChannels = new ArrayList<>();
 
-    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager, int hostPort) throws EventException, IOException {
+    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager, int hostPort,ApplicationLayerInterface applicationLayerInterface) throws EventException, IOException {
         // Get the current time as a ZonedDateTime
         ZonedDateTime now = ZonedDateTime.now();
 
@@ -48,8 +48,6 @@ public class Snapshot {
         this.snapshotPath += snapshotCode + "-" + hostPort + "_" + timestampStr + ".bin";
         LoggerManager.getInstance().mutableInfo("starting snapshot with name " + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
-        JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
-        ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
         Serializable applicationState = applicationLayerInterface.getApplicationState();
 
         ClientSocketHandler anchorNodeHandler;

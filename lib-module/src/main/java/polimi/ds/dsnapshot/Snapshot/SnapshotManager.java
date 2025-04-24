@@ -1,8 +1,12 @@
 package polimi.ds.dsnapshot.Snapshot;
 
+import polimi.ds.dsnapshot.Api.ApplicationLayerInterface;
+import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
+import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
@@ -28,6 +32,7 @@ public class SnapshotManager {
     private final ConnectionManager connectionManager;
 
     private static final String snapshotPath = Config.getString("snapshot.path");
+    private ApplicationLayerInterface applicationLayerInterface;
 
     private Map<SnapshotIdentifier,SnapshotState> lastSnapshotState = new Hashtable<>(); //creator port as key
 
@@ -43,6 +48,9 @@ public class SnapshotManager {
                 LoggerManager.getInstance().mutableInfo("created directory" + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("SnapshotManager"));
             }
         }
+
+        JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
+        applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
     }
 
     // <editor-fold desc="Snapshot procedure">
@@ -70,7 +78,7 @@ public class SnapshotManager {
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
         eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
-            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, this.connectionManager.getName().getPort());
+            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, this.connectionManager.getName().getPort(),applicationLayerInterface);
             snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to start snapshot " + snapshotCode, e);
@@ -189,6 +197,33 @@ public class SnapshotManager {
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
         return true;
     }
+
+    public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
+        lastSnapshotState.remove(snapshotIdentifier);
+    }
+
+    public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException{
+        SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
+            //TODO ad exception
+            return;
+        }
+        lastSnapshotState.remove(snapshotIdentifier);
+        applicationLayerInterface.setApplicationState(state.getApplicationState());
+
+        Map<String, Event> events = new HashMap<>();
+        for(CallbackContentWithName callbackContent : state.getMessageInputStack()){
+            Event event = null;
+            if(events.containsKey(callbackContent.getEventName())) event = events.get(callbackContent.getEventName());
+            else {
+                event = EventsBroker.getEventChannel(callbackContent.getEventName());
+                events.put(callbackContent.getEventName(), event);
+            }
+            event.publish(callbackContent.getCallBackMessage());
+        }
+    }
+
     // </editor-fold>
 
 
@@ -231,7 +266,5 @@ public class SnapshotManager {
                 .orElse(null);
         return file;
     }
-
-
 
 }

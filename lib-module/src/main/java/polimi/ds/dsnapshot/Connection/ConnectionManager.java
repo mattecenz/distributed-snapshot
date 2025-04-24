@@ -623,7 +623,7 @@ public class ConnectionManager {
         }
     }
 
-    private void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
+    private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
         try {
             if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
                 RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
@@ -638,14 +638,22 @@ public class ConnectionManager {
 
     }
 
-    private void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
+    private synchronized void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
         snapshotPendingRequestManager = null;
         forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
-        if(agreementResult.getAgreementResult())restoreSnapshot(agreementResult.getSnapshotIdentifier());
+        tryToRestoreSnapshot(agreementResult.getSnapshotIdentifier(), agreementResult.getAgreementResult());
     }
 
-    private void restoreSnapshot(SnapshotIdentifier snapshotIdentifier){
-        //TODO
+    private synchronized void tryToRestoreSnapshot(SnapshotIdentifier snapshotIdentifier, boolean result){
+        if(result) {
+            try {
+                snapshotManager.restoreSnapshot(snapshotIdentifier);
+            } catch (EventException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
+                //todo decide
+            }
+        }
+        else snapshotManager.removeSnapshotRequest(snapshotIdentifier);
     }
 
     // </editor-fold>
