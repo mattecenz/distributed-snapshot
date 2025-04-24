@@ -12,6 +12,8 @@ import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequestAg
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotResponse;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.TokenMessage;
 import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;
@@ -69,6 +71,7 @@ public class ConnectionManager {
      * For the moment we can assume it is immutable
      */
     private final NodeName name;
+    private Event toForwardEvent;
 
     double directConnectionProbability = Config.getDouble("network.directConnectionProbability");
 
@@ -91,6 +94,19 @@ public class ConnectionManager {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Host not connected to network, cannot do anything:", e);
         }
         this.name = new NodeName(thisIP, port);
+        try {
+            toForwardEvent = EventsBroker.createEventChannel("toForward");
+        } catch (EventException e) {
+            LoggerManager.getInstance().mutableInfo("to forward event already exist", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+            try {
+                toForwardEvent = EventsBroker.getEventChannel("toForward");
+            } catch (EventException ex) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to get event channel", ex);
+                return;
+                //TODO: decide
+            }
+        }
+        toForwardEvent.subscribe(this::forwardMessage);
 
         LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+thisIP+":"+port , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
@@ -716,6 +732,10 @@ public class ConnectionManager {
             }
         }
     }
+    private void forwardMessage(CallbackContent content){
+        ApplicationMessage appMessage = (ApplicationMessage) content.getCallBackMessage();
+        this.forwardMessage(appMessage, appMessage.getReceiver());
+    }
 
     /**
      * Method invoked when we need to discover if a node is present in the network
@@ -832,7 +852,8 @@ public class ConnectionManager {
                     Event messageInputChannel = handler.getMessageInputChannel();
                     messageInputChannel.publish(m);
                 }else{
-                    this.forwardMessage(m,app.getReceiver());
+                    toForwardEvent.publish(app);
+                    //this.forwardMessage(m,app.getReceiver());
                 }
             }
             case MESSAGE_DISCOVERY -> {
@@ -872,6 +893,7 @@ public class ConnectionManager {
             }
             case MESSAGE_DISCOVERYREPLY -> {
                 MessageDiscoveryReply msgdr = (MessageDiscoveryReply) m;
+                LoggerManager.getInstance().mutableInfo("received discovery reply about "+ msgdr.getOriginName().getIP() +":"+ msgdr.getOriginName().getPort() +" from " + handler.getRemoteNodeName().getPort() + ":"+ handler.getRemoteNodeName().getIP(), Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
 
                 // Save information in routing table
                 try {
