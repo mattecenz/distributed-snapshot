@@ -734,7 +734,7 @@ public class ConnectionManager {
     }
     private void forwardMessage(CallbackContent content){
         ApplicationMessage appMessage = (ApplicationMessage) content.getCallBackMessage();
-        this.forwardMessage(appMessage, appMessage.getReceiver());
+        ThreadPool.submit(()->{this.forwardMessage(appMessage, appMessage.getReceiver());});
     }
 
     /**
