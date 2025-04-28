@@ -10,7 +10,7 @@ import sys
 import javaobj
 
 verify = True
-print_ns_rt = False
+print_ns_rt = True
 
 task_ready = 0
 jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
@@ -126,11 +126,11 @@ def read_snapshot(file_path, task):
         # Verifica se l'oggetto è di tipo 'JavaObject' o qualcosa di diverso
         if isinstance(obj, javaobj.JavaObject):
             try:
-                if hasattr(obj, 'anchorNode'):
-                    anchor_node = obj.anchorNode
-                    if not snapshot_verify_anchor(anchor_node,task): return False
+                if hasattr(obj, 'serializableSpanningTree'):
+                    serializable_spanning_tree = obj.serializableSpanningTree
+                    if not pars_spt(serializable_spanning_tree,task): return False
                 else: 
-                    print('no anchor node saved in the snapshot')
+                    print('no spanning tree saved in the snapshot')
                     return False
                 if hasattr(obj, 'routingTable'):
                     routing_table = obj.routingTable
@@ -146,8 +146,6 @@ def read_snapshot(file_path, task):
                     print('no application state or message input stack present in the snapshot')
                     return False
             
-
-
             except Exception as e:
                 print(f"Error while parsing java obj: {e}")
                 return False
@@ -263,7 +261,23 @@ def nodeName_pars(node_name):
         except Exception as e:
             print(f"Error while parsing java obj: {e}")
     return False,None,None
-                   
+
+def pars_spt(spt,task):
+    if isinstance(spt, javaobj.JavaObject):
+        try:
+            if hasattr(spt, 'anchorNodeName'):
+                anchor_node = spt.anchorNodeName
+                if not snapshot_verify_anchor(anchor_node,task): return False
+            else: 
+                print('no anchor node saved in the snapshot')
+                return False
+        except Exception as e:
+            print(f"Error while parsing java obj: {e}")
+            return False
+    else:
+        print("the spt isn't a 'JavaObject'.")
+        return False
+    return True
 def snapshot_verify_anchor(anchor_node, task):
     if(task.expected_final_father==0): return True
 

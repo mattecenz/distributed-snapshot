@@ -49,12 +49,16 @@ public class SnapshotManager {
             }
         }
 
-        JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
-        applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
+
     }
 
     // <editor-fold desc="Snapshot procedure">
     public synchronized boolean manageSnapshotToken(String snapshotCode, NodeName channelName) {
+        if(applicationLayerInterface==null) {
+            JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
+            applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
+        }
+
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
             startNewSnapshot(snapshotCode, channelName);

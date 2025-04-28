@@ -50,22 +50,25 @@ public class Snapshot {
 
         Serializable applicationState = applicationLayerInterface.getApplicationState();
 
-        ClientSocketHandler anchorNodeHandler;
+        LoggerManager.getInstance().mutableInfo("get application state", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
         this.snapshotState = new SnapshotState(connectionManager.getSpt(),connectionManager.getRoutingTable(),applicationState);
 
-        //ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
+        LoggerManager.getInstance().mutableInfo("snapshot state created", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
-        if(eventNames.isEmpty()) {
+        if(eventNames.size() <= 1) {
             ThreadPool.submit(this::endSnapshot);
+            LoggerManager.getInstance().mutableInfo("snapshot started Correctly & end", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
             return;
         }
 
         for (String eventName : eventNames) {
+            LoggerManager.getInstance().mutableInfo("snapshot subscribe to: " + eventName, Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
             Event event = EventsBroker.getEventChannel(eventName);
             inputChannels.add(event);
             event.subscribe(pushMessageReference);
         }
+        LoggerManager.getInstance().mutableInfo("snapshot started Correctly", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
     }
 
     public void pushMessage(CallbackContent callbackContent) {
@@ -80,7 +83,7 @@ public class Snapshot {
         inputChannels.remove(event);
         event.unsubscribe(pushMessageReference);
 
-        if(!inputChannels.isEmpty()) return;
+        if(inputChannels.size() >1) return;
 
         ThreadPool.submit(this::endSnapshot);
     }

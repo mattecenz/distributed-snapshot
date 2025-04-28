@@ -114,7 +114,7 @@ public class SpanningTree implements SnapshotSerializable{
     }
 
     public synchronized Serializable toSerialize(){
-        return new SerializableSpanningTree(this.anchorNodeHandler.orElse(null),this.children);
+        return new SerializableSpanningTree(this.anchorNodeHandler,this.children);
     }
 
     public synchronized boolean serializedValidation(Serializable serializable){
