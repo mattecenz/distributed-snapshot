@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 

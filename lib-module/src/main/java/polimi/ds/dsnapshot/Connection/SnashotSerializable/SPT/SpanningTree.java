@@ -1,10 +1,13 @@
-package polimi.ds.dsnapshot.Connection;
+package polimi.ds.dsnapshot.Connection.SnashotSerializable.SPT;
 
+import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.SnapshotSerializable;
 import polimi.ds.dsnapshot.Exception.SpanningTreeChildAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeChildNotPresentException;
 import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +15,7 @@ import java.util.Optional;
 /**
  * Class which represents the spanning tree of the network from the pov of a single node
  */
-public class SpanningTree {
+public class SpanningTree implements SnapshotSerializable{
     /**
      * Optional object containing the anchor node.
      * If it is empty it means that either the node has not connected yet to a network or is the node who created the network
@@ -56,7 +59,7 @@ public class SpanningTree {
      * Getter of the list of children
      * @return
      */
-    protected List<ClientSocketHandler> getChildren() {
+    public List<ClientSocketHandler> getChildren() {
         return this.children;
     }
 
@@ -87,7 +90,7 @@ public class SpanningTree {
      * @param newChild new client socket handler of the child
      * @throws SpanningTreeChildAlreadyPresentException if the child is already present in the spt
      */
-    protected synchronized void addChild(ClientSocketHandler newChild) throws SpanningTreeChildAlreadyPresentException {
+    public synchronized void addChild(ClientSocketHandler newChild) throws SpanningTreeChildAlreadyPresentException {
         LoggerManager.getInstance().mutableInfo("add child to spanning tree: " + newChild.getRemoteNodeName().getIP()+":"+newChild.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (this.children.contains(newChild)) throw new SpanningTreeChildAlreadyPresentException();
         this.children.add(newChild);
@@ -99,7 +102,7 @@ public class SpanningTree {
      * @param child socket handler to remove
      * @throws SpanningTreeChildNotPresentException if no child is present in the current list of children
      */
-    protected synchronized void removeChild(ClientSocketHandler child) throws SpanningTreeChildNotPresentException {
+    public synchronized void removeChild(ClientSocketHandler child) throws SpanningTreeChildNotPresentException {
         LoggerManager.getInstance().mutableInfo("child removed from the spanning tree: " + child.getRemoteNodeName().getIP()+":"+child.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
         if (!this.children.contains(child)) throw new SpanningTreeChildNotPresentException();
         this.children.remove(child);
@@ -108,5 +111,28 @@ public class SpanningTree {
     public synchronized boolean isNodeLeaf(){
         if(this.anchorNodeHandler.isEmpty() && this.children.size() == 1) return true;
         return this.children.isEmpty();
+    }
+
+    public synchronized Serializable toSerialize(){
+        return new SerializableSpanningTree(this.anchorNodeHandler.orElse(null),this.children);
+    }
+
+    public synchronized boolean serializedValidation(Serializable serializable){
+        SerializableSpanningTree serializableSpanningTree = (SerializableSpanningTree)serializable;
+        if(this.anchorNodeHandler.isEmpty() && serializableSpanningTree.getAnchorNodeName()!=null) return false;
+        if(!serializableSpanningTree.getAnchorNodeName().equals(this.anchorNodeHandler.get().getRemoteNodeName())) return false;
+
+        if(this.children.size()!=serializableSpanningTree.getChildrenNames().size()) return false;
+
+        for(ClientSocketHandler client : this.children){
+            if(!serializableSpanningTree.getChildrenNames().contains(client.getRemoteNodeName())) return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public void fromSerialize(Serializable snapshotSerializable) {
+        //TODO
     }
 }

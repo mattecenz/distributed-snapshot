@@ -1,12 +1,11 @@
-package polimi.ds.dsnapshot.Connection.RoutingTable;
+package polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.SnapshotSerializable;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import java.io.Serializable;
 import java.util.*;
@@ -15,7 +14,7 @@ import java.util.*;
  * Internal routing table of the connection manager.
  * If needed it needs to be accessed atomically
  */
-public class RoutingTable implements Serializable {
+public class RoutingTable implements SnapshotSerializable {
     /**
      * Internal dictionary of the form: (node name, client socket handler).
      */
@@ -170,15 +169,16 @@ public class RoutingTable implements Serializable {
         return nextHop;
     }
 
-    public synchronized SerializableRoutingTable toSerialize(){
+    public synchronized Serializable toSerialize(){
         return new SerializableRoutingTable(routingTableFields);
     }
 
-    public synchronized void fromSerialize(SerializableRoutingTable serializableRoutingTable){
+    public synchronized void fromSerialize(Serializable serializableRoutingTable){
         //TODO
     }
 
-    public synchronized boolean serializedValidation(SerializableRoutingTable serializableRoutingTable, List<NodeName> ignoredList){
+    public synchronized boolean serializedValidation(Serializable serializable){
+        SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable) serializable;
         Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         if (oldRoutingTableFieldsDict == null && !routingTableFields.isEmpty()) return false;
         else if (oldRoutingTableFieldsDict == null && routingTableFields.isEmpty()) return true;
@@ -190,7 +190,6 @@ public class RoutingTable implements Serializable {
         Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            if(ignoredList.contains(key))continue; //used to ignore the re-entering node in  the validation
             NodeName value = oldRoutingTableFieldsDict.get(key);
             if(key.equals(value)) {
                 if(routingTableFields.get(key) == null || !value.equals(routingTableFields.get(key).getRemoteNodeName())) return false;
@@ -201,7 +200,6 @@ public class RoutingTable implements Serializable {
         keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            if(ignoredList.contains(key))continue; //used to ignore the re-entering node in  the validation
             NodeName value = routingTableFields.get(key).getRemoteNodeName();
 
             if(key.equals(value)) {

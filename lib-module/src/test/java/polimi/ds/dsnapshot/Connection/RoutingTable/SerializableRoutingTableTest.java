@@ -6,6 +6,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 
 import java.io.IOException;
@@ -41,7 +43,7 @@ public class SerializableRoutingTableTest {
     void serializeTest() throws RoutingTableNodeAlreadyPresentException {
         routingTable.addPath(nodeName,clientSocketHandler);
 
-        SerializableRoutingTable serializableRoutingTable = routingTable.toSerialize();
+        SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable)routingTable.toSerialize();
 
         Dictionary<NodeName, NodeName> routingTableFields = serializableRoutingTable.getOldRoutingTableFields();
 

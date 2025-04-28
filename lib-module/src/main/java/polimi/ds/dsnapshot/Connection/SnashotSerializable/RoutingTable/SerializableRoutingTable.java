@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Connection.RoutingTable;
+package polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
@@ -19,7 +19,7 @@ public class SerializableRoutingTable implements Serializable{
         }
     }
 
-    protected Dictionary<NodeName, NodeName> getOldRoutingTableFields() {
+    public Dictionary<NodeName, NodeName> getOldRoutingTableFields() {
         return routingTableFields;
     }
 

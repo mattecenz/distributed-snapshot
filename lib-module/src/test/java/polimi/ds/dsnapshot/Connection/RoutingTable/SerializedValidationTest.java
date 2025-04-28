@@ -6,6 +6,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 
@@ -13,7 +15,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
@@ -38,38 +39,35 @@ public class SerializedValidationTest {
         @Test
         void validationSuccessTest() throws RoutingTableNodeAlreadyPresentException {
             this.setRoutingTableFields(3,0);
-            serializableRoutingTable = routingTable.toSerialize();
-            List<NodeName> ignoredList = new ArrayList<>();
+            serializableRoutingTable = (SerializableRoutingTable)routingTable.toSerialize();
 
             assert serializableRoutingTable != null;
-            assert routingTable.serializedValidation(serializableRoutingTable, ignoredList);
+            assert routingTable.serializedValidation(serializableRoutingTable);
         }
 
         @Test
         void validationFailureTest1() throws RoutingTableNodeAlreadyPresentException {
             this.setRoutingTableFields(3,1);
-            serializableRoutingTable = routingTable.toSerialize();
-            List<NodeName> ignoredList = new ArrayList<>();
+            serializableRoutingTable = (SerializableRoutingTable)routingTable.toSerialize();
 
             NodeName problematicNode = new NodeName("nodeP", 10);
             ClientSocketHandler problematicSocket = new ClientSocketHandler(socket, problematicNode);
             routingTable.addPath(problematicNode, problematicSocket);
 
             assert serializableRoutingTable != null;
-            assert !routingTable.serializedValidation(serializableRoutingTable, ignoredList);
+            assert !routingTable.serializedValidation(serializableRoutingTable);
         }
 
     @Test
     void validationFailureTest2() throws RoutingTableNodeAlreadyPresentException, RoutingTableNodeNotPresentException {
         this.setRoutingTableFields(3,2);
-        serializableRoutingTable = routingTable.toSerialize();
-        List<NodeName> ignoredList = new ArrayList<>();
+        serializableRoutingTable = (SerializableRoutingTable) routingTable.toSerialize();
 
         NodeName problematicNode = new NodeName("Node00012", 10);
         routingTable.removePath(problematicNode);
 
         assert serializableRoutingTable != null;
-        assert !routingTable.serializedValidation(serializableRoutingTable, ignoredList);
+        assert !routingTable.serializedValidation(serializableRoutingTable);
     }
 
     private void setRoutingTableFields(int nodeNum, int testNum) throws RoutingTableNodeAlreadyPresentException {

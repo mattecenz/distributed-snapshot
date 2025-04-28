@@ -51,15 +51,8 @@ public class Snapshot {
         Serializable applicationState = applicationLayerInterface.getApplicationState();
 
         ClientSocketHandler anchorNodeHandler;
-        try {
-            anchorNodeHandler = connectionManager.getSpt().getAnchorNodeHandler();
-            // TODO: look into this further. Again what happens if node is first of the network?
-            this.snapshotState = new SnapshotState(anchorNodeHandler.getRemoteNodeName(),connectionManager.getRoutingTable(),applicationState);
-        } catch (SpanningTreeNoAnchorNodeException e) {
-            // TODO: decide, just set it to null? I Guess use optionals then
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Anchor node hanlder is missing", e);
-            this.snapshotState = new SnapshotState(connectionManager.getRoutingTable(),applicationState);
-        }
+
+        this.snapshotState = new SnapshotState(connectionManager.getSpt(),connectionManager.getRoutingTable(),applicationState);
 
         //ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
 

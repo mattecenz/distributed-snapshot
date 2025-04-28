@@ -150,6 +150,19 @@ public class SnapshotManager {
 
         lastSnapshotState.put(snapshotIdentifier, state);
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
+
+        //validate anchor node
+        NodeName anchorNodeName = state.getSerializableSpanningTree().getAnchorNodeName();
+        try {
+            if(anchorNodeName != null && !Objects.equals(anchorNodeName, connectionManager.getSpt().getAnchorNodeHandler().getRemoteNodeName())) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to inconsistent anchor node");
+                return false;
+            }
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to inconsistent anchor node");
+            return false;
+        }
+
         return true;
     }
 
@@ -172,30 +185,8 @@ public class SnapshotManager {
             return false;
         }
 
-        //validate anchor node
-        try {
-            if(state.getAnchorNode()!= null && !Objects.equals(state.getAnchorNode(), connectionManager.getSpt().getAnchorNodeHandler().getRemoteNodeName())){
-                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent anchor node");
-                return false;
-            }
-        } catch (SpanningTreeNoAnchorNodeException e) {
-            LoggerManager.getInstance().mutableInfo("current anchor node is null", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
-            if(state.getAnchorNode()!= null && !state.getAnchorNode().equals(resetSnapshotRequest.getSnapshotIdentifier().getSnapshotCreatorName())) { //the current anchor node can be null if the current node is child of the re-entering node
-                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent anchor node");
-                return false;
-            }
-        }
-
-        //validate direct connection in the routing table
-        List<NodeName> ignoredList = new ArrayList<>();
-        ignoredList.add(resetSnapshotRequest.getSnapshotIdentifier().getSnapshotCreatorName());
-        if(!connectionManager.getRoutingTable().serializedValidation(state.getRoutingTable(),ignoredList)) {
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due inconsistent routing table");
-            return false;
-        }
-        lastSnapshotState.put(resetSnapshotRequest.getSnapshotIdentifier(), state);
-        LoggerManager.getInstance().mutableInfo("success in validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
-        return true;
+        //validate spt
+        return connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree());
     }
 
     public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
