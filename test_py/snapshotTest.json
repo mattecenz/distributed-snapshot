@@ -5,7 +5,8 @@
         "expected_output": ["ciao sono 3","ciao sono 5","ciao sono 7"],
         "sync_points": [1,12],
         "expected_final_father": 0,
-        "expected_final_rt_entries": [6000,3000]
+        "expected_final_rt_entries": [6000,3000],
+        "expected_children": [3000,5000,4000]
     },
     {
         "input": ["n","3000","<local_ip>","2000","/msg","<local_ip>","2000","ciao sono 3"],
@@ -21,7 +22,9 @@
         "expected_output": ["ciao sono 4","ciao sono 7"],
         "sync_points": [3,14],
         "expected_final_father": 2000,
-        "expected_final_rt_entries": [2000,3000]
+        "expected_final_rt_entries": [2000,3000],
+        "expected_children": [7000,6000]
+    
     },
     {
         "input": ["n","4000","<local_ip>","2000","/msg","<local_ip>","3000","ciao sono 4","/msg","<local_ip>","5000","ciao sono 4"],
