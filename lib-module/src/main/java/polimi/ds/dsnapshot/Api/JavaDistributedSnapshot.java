@@ -19,10 +19,8 @@ import java.util.Optional;
 
 public class JavaDistributedSnapshot{
     private static JavaDistributedSnapshot instance;
-
     private static ConnectionManager connectionManager;
     private static ApplicationLayerInterface applicationLayerInterface;
-
 
     private JavaDistributedSnapshot() {}
 

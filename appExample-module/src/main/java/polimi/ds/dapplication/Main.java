@@ -3,6 +3,8 @@ package polimi.ds.dapplication;
 import polimi.ds.dapplication.Message.StringMessage;
 import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
 
 import java.io.IOException;
 import java.util.Scanner;
@@ -114,6 +116,9 @@ public class Main {
                         // Is there something else to do ? idk
                         JavaDistributedSnapshot.getInstance().startNewSnapshot();
                     }
+                    case "restore" ->{
+                        restoreSnapshot();
+                    }
                     case "surprise" ->{
                         surprise();
                     }
@@ -144,6 +149,25 @@ public class Main {
 
         }
 
+    }
+
+    private static void restoreSnapshot(){
+        SystemOutTS.print("Enter the code of the snapshot to be restored: "); //code -> random string
+        String code = scanner.nextLine();
+        SystemOutTS.print("Enter the ip saved in the name of the snapshot to be restored: ");
+        String ip = retryInput(regexIp);
+        SystemOutTS.print("Enter port of the snapshot to be restored: ");
+        int port = retryInputInteger();
+
+        try {
+            JavaDistributedSnapshot.getInstance().restoreSnapshot(code,ip,port);
+        } catch (SnapshotRestoreRemoteException e) {
+            SystemOutTS.println("The library threw a SnapshotRestoreRemoteException: " + e.getMessage());
+        } catch (SnapshotRestoreLocalException e) {
+            SystemOutTS.println("The library threw a SnapshotRestoreLocalException: " + e.getMessage());
+        }
+
+        SystemOutTS.print("Snapshot restored successfully. can resume operations");
     }
 
     private static void joinNetwork(){
