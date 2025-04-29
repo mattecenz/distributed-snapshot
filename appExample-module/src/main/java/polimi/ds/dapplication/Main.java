@@ -1,7 +1,7 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
-import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
 import java.io.IOException;

@@ -12,6 +12,7 @@ public class SnapshotPendingRequestManager {
     private final List<NodeName> pendingRequests  = new ArrayList<NodeName>();
     private final Optional<ClientSocketHandler> SnapshotRequestSender;
     private final SnapshotIdentifier snapshotIdentifier;
+    private final Object snapshotLock = new Object();
 
     public SnapshotPendingRequestManager(Optional<ClientSocketHandler> SnapshotRequestSender, SnapshotIdentifier snapshotIdentifier) {
         this.SnapshotRequestSender = SnapshotRequestSender;
@@ -32,6 +33,9 @@ public class SnapshotPendingRequestManager {
         this.snapshotIdentifierComparison(snapshotIdentifier);
 
         pendingRequests.remove(nodeName);
+        synchronized (snapshotLock) {
+            if (pendingRequests.isEmpty()) snapshotLock.notifyAll();
+        }
         return pendingRequests.isEmpty();
     }
 
@@ -39,6 +43,16 @@ public class SnapshotPendingRequestManager {
         this.snapshotIdentifierComparison(snapshotIdentifier);
 
         return SnapshotRequestSender.orElse(null);
+    }
+
+    public boolean isEmpty(SnapshotIdentifier snapshotIdentifier) throws SnapshotPendingRequestManagerException {
+        this.snapshotIdentifierComparison(snapshotIdentifier);
+
+        return pendingRequests.isEmpty();
+    }
+
+    public Object getSnapshotLock() {
+        return snapshotLock;
     }
 
     private void snapshotIdentifierComparison(SnapshotIdentifier snapshotIdentifier) throws SnapshotPendingRequestManagerException {

@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
 import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Snapshot.SnapshotPendingRequestManager;
@@ -596,25 +598,91 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="restore Snapshot procedure">
-    public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier){
+    public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreLocalException, SnapshotRestoreRemoteException {
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
-        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier)) return; //TODO: notify client on the snapshot restore fail (error motivations in log)
+        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier)) throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
 
-        snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.empty(), snapshotIdentifier);
-        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
-    }
+        synchronized (this){
+            snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.empty(), snapshotIdentifier);
+            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
 
-    private synchronized void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
-        boolean snapshotValid = snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
-        RestoreSnapshotResponse restoreSnapshotResponse = new RestoreSnapshotResponse(restoreSnapshotRequest, snapshotValid);
-
-        if(!snapshotValid || this.spt.isNodeLeaf()) {
-            sender.sendMessage(restoreSnapshotResponse);
-            return;
+            this.fillPendingRequests(Optional.empty());
         }
 
-        snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.ofNullable(sender), restoreSnapshotRequest.getSnapshotIdentifier());
-        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
+
+        //wait for response
+        Object lock = snapshotPendingRequestManager.getSnapshotLock();
+        try {
+            synchronized(lock){
+                lock.wait(Config.getInt("snapshot.snapshotRestore2PCTimeout"));
+
+                if(!snapshotPendingRequestManager.isEmpty(snapshotIdentifier)){
+                    throw new SnapshotRestoreRemoteException("is not possible to restore the snapshot!");
+                }
+
+                snapshotPendingRequestManager = null;
+            }
+        } catch (InterruptedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
+            //TODO: decide
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
+            //TODO: decide
+        }
+    }
+
+    private void fillPendingRequests(Optional<NodeName> sender){
+        try {
+            NodeName anchorNodeName = spt.getAnchorNodeHandler().getRemoteNodeName();
+            if(sender.isPresent() && !anchorNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(anchorNodeName);
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            LoggerManager.getInstance().mutableInfo("starting snapshot from a node without anchor", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
+            //TODO: decide
+        }
+
+        for(ClientSocketHandler h : spt.getChildren()){
+            NodeName childNodeName = h.getRemoteNodeName();
+            if(sender.isPresent() && !childNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(childNodeName);
+        }
+    }
+
+    private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
+        boolean snapshotValid = snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
+
+        if(!snapshotValid || this.spt.isNodeLeaf()) {
+            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, snapshotValid));
+            return;
+        }
+        SnapshotIdentifier snapshotIdentifier = restoreSnapshotRequest.getSnapshotIdentifier();
+        synchronized (this){
+            snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.ofNullable(sender), snapshotIdentifier);
+
+            this.fillPendingRequests(Optional.ofNullable(sender.getRemoteNodeName()));
+        }
+
+        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.ofNullable(sender));
+
+        //wait for response
+        Object lock = snapshotPendingRequestManager.getSnapshotLock();
+        try {
+            synchronized(lock){
+                lock.wait(Config.getInt("snapshot.snapshotRestore2PCTimeout"));
+
+                if(!snapshotPendingRequestManager.isEmpty(snapshotIdentifier)){
+                    LoggerManager.instanceGetLogger().log(Level.WARNING,"snapshot procedure fail due to timeout expiration");
+                    sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, false));
+                }
+
+                snapshotPendingRequestManager = null;
+            }
+        } catch (InterruptedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
     }
 
     private synchronized void receiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler){
@@ -628,11 +696,17 @@ public class ConnectionManager {
                 return;
             }
 
-            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
                 //all pending request has been received
                 //or receive an invalid response => I can forward to the leader without waiting for other requests
                 snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
-                snapshotPendingRequestManager = null;
+            }else if(!restoreSnapshotResponse.isSnapshotValid()){
+                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
+
+                Object lock = snapshotPendingRequestManager.getSnapshotLock();
+                synchronized(lock){
+                    lock.notifyAll();
+                }
             }
         } catch (SnapshotPendingRequestManagerException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
@@ -642,12 +716,18 @@ public class ConnectionManager {
 
     private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
         try {
-            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier()) || !restoreSnapshotResponse.isSnapshotValid()){
-                RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
+            RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
                 forwardMessageAlongSPT(result, Optional.empty());
-                snapshotPendingRequestManager = null;
-                return;
+            }else if (!restoreSnapshotResponse.isSnapshotValid()){
+                forwardMessageAlongSPT(result, Optional.empty());
+
+                Object lock = snapshotPendingRequestManager.getSnapshotLock();
+                synchronized(lock){
+                    lock.notifyAll();
+                }
             }
+            tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
         } catch (SnapshotPendingRequestManagerException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
             //TODO: decide
@@ -656,7 +736,6 @@ public class ConnectionManager {
     }
 
     private synchronized void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
-        snapshotPendingRequestManager = null;
         forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
         tryToRestoreSnapshot(agreementResult.getSnapshotIdentifier(), agreementResult.getAgreementResult());
     }

@@ -11,6 +11,7 @@ public class DefaultConfigParameters {
         DEFAULTS.put("snapshot.path", "./snapshots/");
         DEFAULTS.put("snapshot.codeAdmissibleChars", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
         DEFAULTS.put("snapshot.uniqueCodeSize", 8);
+        DEFAULTS.put("snapshot.snapshotRestore2PCTimeout", 10000);
 
         DEFAULTS.put("network.PingPongTimeout", 5000);
         DEFAULTS.put("network.directConnectionProbability", 0.7);

@@ -17,7 +17,7 @@ import polimi.ds.dsnapshot.Connection.SnashotSerializable.SPT.SpanningTree;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
-import polimi.ds.dsnapshot.Exception.JavaDSException;
+import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
