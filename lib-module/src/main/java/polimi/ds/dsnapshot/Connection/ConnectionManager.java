@@ -618,6 +618,7 @@ public class ConnectionManager {
                 lock.wait(Config.getInt("snapshot.snapshotRestore2PCTimeout"));
 
                 if(!snapshotPendingRequestManager.isEmpty(snapshotIdentifier)){
+                    LoggerManager.instanceGetLogger().log(Level.WARNING,"snapshot procedure fail due to timeout expiration");
                     throw new SnapshotRestoreRemoteException("is not possible to restore the snapshot!");
                 }
 
@@ -707,6 +708,7 @@ public class ConnectionManager {
             }
 
             if(!restoreSnapshotResponse.isSnapshotValid()){
+                LoggerManager.getInstance().mutableInfo("send back negative response", Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
                 snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
 
                 Object lock = snapshotPendingRequestManager.getSnapshotLock();
@@ -718,6 +720,7 @@ public class ConnectionManager {
             if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
                 //all pending request has been received
                 //or receive an invalid response => I can forward to the leader without waiting for other requests
+                LoggerManager.getInstance().mutableInfo("the last pending request has been response, send back result", Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
                 snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
             }
 
@@ -733,6 +736,7 @@ public class ConnectionManager {
             RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
 
             if (!restoreSnapshotResponse.isSnapshotValid()){
+
                 forwardMessageAlongSPT(result, Optional.empty());
 
                 Object lock = snapshotPendingRequestManager.getSnapshotLock();
@@ -1034,7 +1038,7 @@ public class ConnectionManager {
             }
             case SNAPSHOT_RESET_REQUEST -> {
                 RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
-                this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);
+                ThreadPool.submit(()->{this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);});
             }
             case SNAPSHOT_RESET_RESPONSE ->{
                 RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
