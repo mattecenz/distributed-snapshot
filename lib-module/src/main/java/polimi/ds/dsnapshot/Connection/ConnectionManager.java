@@ -646,9 +646,11 @@ public class ConnectionManager {
             NodeName childNodeName = h.getRemoteNodeName();
             if(sender.isPresent() && !childNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(childNodeName);
         }
+        LoggerManager.getInstance().mutableInfo("the node is waiting for " + snapshotPendingRequestManager.pendingRequestCount() + " pending request before restoring the snapshot", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
     }
 
     private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
+        LoggerManager.getInstance().mutableInfo("the node has received a restore request", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
         boolean snapshotValid = snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
 
         if(!snapshotValid || this.spt.isNodeLeaf()) {
@@ -686,6 +688,7 @@ public class ConnectionManager {
     }
 
     private synchronized void receiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler){
+        LoggerManager.getInstance().mutableInfo("the node has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreResponse"));
         if(snapshotPendingRequestManager == null) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"No snapshotPendingRequestManager, skipping.");
             return;
@@ -696,18 +699,21 @@ public class ConnectionManager {
                 return;
             }
 
-            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
-                //all pending request has been received
-                //or receive an invalid response => I can forward to the leader without waiting for other requests
-                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
-            }else if(!restoreSnapshotResponse.isSnapshotValid()){
+            if(!restoreSnapshotResponse.isSnapshotValid()){
                 snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
 
                 Object lock = snapshotPendingRequestManager.getSnapshotLock();
                 synchronized(lock){
                     lock.notifyAll();
                 }
+                return;
             }
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
+                //all pending request has been received
+                //or receive an invalid response => I can forward to the leader without waiting for other requests
+                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
+            }
+
         } catch (SnapshotPendingRequestManagerException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
             //TODO: decide
@@ -715,19 +721,26 @@ public class ConnectionManager {
     }
 
     private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
+        LoggerManager.getInstance().mutableInfo("the snapshot leader has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
         try {
             RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
-            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
-                forwardMessageAlongSPT(result, Optional.empty());
-            }else if (!restoreSnapshotResponse.isSnapshotValid()){
+
+            if (!restoreSnapshotResponse.isSnapshotValid()){
                 forwardMessageAlongSPT(result, Optional.empty());
 
                 Object lock = snapshotPendingRequestManager.getSnapshotLock();
                 synchronized(lock){
                     lock.notifyAll();
                 }
+                tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+                return;
             }
-            tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
+                forwardMessageAlongSPT(result, Optional.empty());
+                tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+            }
+
         } catch (SnapshotPendingRequestManagerException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
             //TODO: decide
@@ -738,18 +751,26 @@ public class ConnectionManager {
     private synchronized void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
         forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
         tryToRestoreSnapshot(agreementResult.getSnapshotIdentifier(), agreementResult.getAgreementResult());
+
+        //todo: we need to notify? (in case of negative response)
     }
 
     private synchronized void tryToRestoreSnapshot(SnapshotIdentifier snapshotIdentifier, boolean result){
+        LoggerManager.getInstance().mutableInfo("try to restore the snapshot after 2PC", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
         if(result) {
+            LoggerManager.getInstance().mutableInfo("restoring...", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
             try {
                 snapshotManager.restoreSnapshot(snapshotIdentifier);
+                LoggerManager.getInstance().mutableInfo("snapshot restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
             } catch (EventException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
                 //todo decide
             }
         }
-        else snapshotManager.removeSnapshotRequest(snapshotIdentifier);
+        else{
+            LoggerManager.getInstance().mutableInfo("negative response cannot restore the snapshot, abort procedure!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            snapshotManager.removeSnapshotRequest(snapshotIdentifier);
+        }
     }
 
     // </editor-fold>

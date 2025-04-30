@@ -42,7 +42,8 @@ public class AppUtility implements ApplicationLayerInterface {
 
     @Override
     public void setApplicationState(Serializable appState) {
-        //TODO
+        SystemOutTS.println("snapshot state restored!");
+        Main.getAppState().restoreAppState(appState);
     }
 
     @Override

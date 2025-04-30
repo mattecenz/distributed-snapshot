@@ -152,52 +152,26 @@ public class SnapshotManager {
             return false;
         }
 
+        if(!connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree())) return false;
+
         lastSnapshotState.put(snapshotIdentifier, state);
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
 
-        //validate anchor node
-        NodeName anchorNodeName = state.getSerializableSpanningTree().getAnchorNodeName();
-        try {
-            if(anchorNodeName != null && !Objects.equals(anchorNodeName, connectionManager.getSpt().getAnchorNodeHandler().getRemoteNodeName())) {
-                LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to inconsistent anchor node");
-                return false;
-            }
-        } catch (SpanningTreeNoAnchorNodeException e) {
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to inconsistent anchor node");
-            return false;
-        }
-
+        //validate spt
         return true;
     }
 
     public synchronized boolean validateSnapshotRequest(RestoreSnapshotRequest resetSnapshotRequest) {
-        LoggerManager.getInstance().mutableInfo("starting validate snapshot request", Optional.of(this.getClass().getName()), Optional.of("validateSnapshotRequest"));
-        if (!lastSnapshotState.isEmpty()) {
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
-            return false;
-        }
-        File file = getLastSnapshotFile(resetSnapshotRequest.getSnapshotIdentifier(), this.connectionManager.getName().getPort());
-        SnapshotState state = null;
-
-        if(file != null){
-            state = parseSnapshotFile(file);
-        }
-
-        //no snapshot file found
-        if(state == null) {
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, snapshot file can't be found");
-            return false;
-        }
-
-        //validate spt
-        return connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree());
+        return reEnteringNodeValidateSnapshotRequest(resetSnapshotRequest.getSnapshotIdentifier());
     }
 
     public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
+        LoggerManager.getInstance().mutableInfo("abort restore procedure by clearing snapshot last state", Optional.of(this.getClass().getName()), Optional.of("removeSnapshotRequest"));
         lastSnapshotState.remove(snapshotIdentifier);
     }
 
     public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException{
+        LoggerManager.getInstance().mutableInfo("starting restore the snapshot after 2pc agreement", Optional.of(this.getClass().getName()), Optional.of("restoreSnapshot"));
         SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
         if(state == null) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
@@ -205,7 +179,10 @@ public class SnapshotManager {
             return;
         }
         lastSnapshotState.remove(snapshotIdentifier);
+
+        if(applicationLayerInterface==null) applicationLayerInterface = JavaDistributedSnapshot.getInstance().getApplicationLayerInterface();
         applicationLayerInterface.setApplicationState(state.getApplicationState());
+        LoggerManager.getInstance().mutableInfo("application state restored.", Optional.of(this.getClass().getName()), Optional.of("restoreSnapshot"));
 
         Map<String, Event> events = new HashMap<>();
         for(CallbackContentWithName callbackContent : state.getMessageInputStack()){

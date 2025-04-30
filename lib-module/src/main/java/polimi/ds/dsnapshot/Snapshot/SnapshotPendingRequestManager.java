@@ -29,6 +29,10 @@ public class SnapshotPendingRequestManager {
         pendingRequests.add(nodeName);
     }
 
+    public int pendingRequestCount() {
+        return pendingRequests.size();
+    }
+
     public boolean removePendingRequest(NodeName nodeName, SnapshotIdentifier snapshotIdentifier) throws SnapshotPendingRequestManagerException {
         this.snapshotIdentifierComparison(snapshotIdentifier);
 

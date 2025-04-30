@@ -120,7 +120,7 @@ public class SpanningTree implements SnapshotSerializable{
     public synchronized boolean serializedValidation(Serializable serializable){
         SerializableSpanningTree serializableSpanningTree = (SerializableSpanningTree)serializable;
         if(this.anchorNodeHandler.isEmpty() && serializableSpanningTree.getAnchorNodeName()!=null) return false;
-        if(!serializableSpanningTree.getAnchorNodeName().equals(this.anchorNodeHandler.get().getRemoteNodeName())) return false;
+        if(this.anchorNodeHandler.isPresent() && !serializableSpanningTree.getAnchorNodeName().equals(this.anchorNodeHandler.get().getRemoteNodeName())) return false;
 
         if(this.children.size()!=serializableSpanningTree.getChildrenNames().size()) return false;
 

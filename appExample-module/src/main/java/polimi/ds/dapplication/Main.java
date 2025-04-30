@@ -163,8 +163,10 @@ public class Main {
             JavaDistributedSnapshot.getInstance().restoreSnapshot(code,ip,port);
         } catch (SnapshotRestoreRemoteException e) {
             SystemOutTS.println("The library threw a SnapshotRestoreRemoteException: " + e.getMessage());
+            return;
         } catch (SnapshotRestoreLocalException e) {
             SystemOutTS.println("The library threw a SnapshotRestoreLocalException: " + e.getMessage());
+            return;
         }
 
         SystemOutTS.print("Snapshot restored successfully. can resume operations");
