@@ -599,14 +599,15 @@ public class ConnectionManager {
 
     // <editor-fold desc="restore Snapshot procedure">
     public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreLocalException, SnapshotRestoreRemoteException {
+        LoggerManager.getInstance().mutableInfo("starting snapshot restore procedure (2PC)", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
         if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier)) throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
 
         synchronized (this){
+            LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
             snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.empty(), snapshotIdentifier);
-            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
-
             this.fillPendingRequests(Optional.empty());
+            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
         }
 
 
@@ -620,6 +621,10 @@ public class ConnectionManager {
                     throw new SnapshotRestoreRemoteException("is not possible to restore the snapshot!");
                 }
 
+
+            }
+            synchronized (this) {
+                LoggerManager.getInstance().mutableInfo("reset snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
                 snapshotPendingRequestManager = null;
             }
         } catch (InterruptedException e) {
@@ -636,7 +641,7 @@ public class ConnectionManager {
     private void fillPendingRequests(Optional<NodeName> sender){
         try {
             NodeName anchorNodeName = spt.getAnchorNodeHandler().getRemoteNodeName();
-            if(sender.isPresent() && !anchorNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(anchorNodeName);
+            if(sender.isEmpty() || !anchorNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(anchorNodeName);
         } catch (SpanningTreeNoAnchorNodeException e) {
             LoggerManager.getInstance().mutableInfo("starting snapshot from a node without anchor", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
             //TODO: decide
@@ -644,7 +649,7 @@ public class ConnectionManager {
 
         for(ClientSocketHandler h : spt.getChildren()){
             NodeName childNodeName = h.getRemoteNodeName();
-            if(sender.isPresent() && !childNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(childNodeName);
+            if(sender.isEmpty() || !childNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(childNodeName);
         }
         LoggerManager.getInstance().mutableInfo("the node is waiting for " + snapshotPendingRequestManager.pendingRequestCount() + " pending request before restoring the snapshot", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
     }
@@ -659,12 +664,12 @@ public class ConnectionManager {
         }
         SnapshotIdentifier snapshotIdentifier = restoreSnapshotRequest.getSnapshotIdentifier();
         synchronized (this){
+            LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
             snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.ofNullable(sender), snapshotIdentifier);
-
             this.fillPendingRequests(Optional.ofNullable(sender.getRemoteNodeName()));
-        }
 
-        forwardMessageAlongSPT(restoreSnapshotRequest, Optional.ofNullable(sender));
+            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.ofNullable(sender));
+        }
 
         //wait for response
         Object lock = snapshotPendingRequestManager.getSnapshotLock();
@@ -676,7 +681,9 @@ public class ConnectionManager {
                     LoggerManager.instanceGetLogger().log(Level.WARNING,"snapshot procedure fail due to timeout expiration");
                     sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, false));
                 }
-
+            }
+            synchronized (this) {
+                LoggerManager.getInstance().mutableInfo("reset snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
                 snapshotPendingRequestManager = null;
             }
         } catch (InterruptedException e) {
