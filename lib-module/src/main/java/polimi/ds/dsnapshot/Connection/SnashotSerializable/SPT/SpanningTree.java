@@ -131,8 +131,4 @@ public class SpanningTree implements SnapshotSerializable{
         return true;
     }
 
-    @Override
-    public void fromSerialize(Serializable snapshotSerializable) {
-        //TODO
-    }
 }

@@ -2,9 +2,11 @@ package polimi.ds.dsnapshot.Snapshot;
 
 import polimi.ds.dsnapshot.Api.ApplicationLayerInterface;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
@@ -168,6 +170,17 @@ public class SnapshotManager {
     public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
         LoggerManager.getInstance().mutableInfo("abort restore procedure by clearing snapshot last state", Optional.of(this.getClass().getName()), Optional.of("removeSnapshotRequest"));
         lastSnapshotState.remove(snapshotIdentifier);
+    }
+
+    public synchronized List<ClientSocketHandler> restoreSnapshotRoutingTable(SnapshotIdentifier snapshotIdentifier) {
+        SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
+            //TODO ad exception
+            return new ArrayList<>();
+        }
+
+        return connectionManager.getRoutingTable().fromSerialize(state.getRoutingTable(), connectionManager);
     }
 
     public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException{

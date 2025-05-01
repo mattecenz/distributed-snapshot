@@ -1,14 +1,19 @@
 package polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
+import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.SnapshotSerializable;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
+import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.net.Socket;
 import java.util.*;
+import java.util.logging.Level;
 
 /**
  * Internal routing table of the connection manager.
@@ -169,14 +174,12 @@ public class RoutingTable implements SnapshotSerializable {
         return nextHop;
     }
 
+    @Override
     public synchronized Serializable toSerialize(){
         return new SerializableRoutingTable(routingTableFields);
     }
 
-    public synchronized void fromSerialize(Serializable serializableRoutingTable){
-        //TODO
-    }
-
+    @Override
     public synchronized boolean serializedValidation(Serializable serializable){
         SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable) serializable;
         Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
@@ -209,5 +212,75 @@ public class RoutingTable implements SnapshotSerializable {
 
         return true;
     }
+
+    public synchronized List<ClientSocketHandler> fromSerialize(SerializableRoutingTable serializableRoutingTable, ConnectionManager manager){
+        Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
+        removeNonDirectConnections(oldRoutingTableFieldsDict);
+
+        List<ClientSocketHandler> newConnections = new ArrayList<>();
+        try {
+            newConnections = this.addNewEntries(oldRoutingTableFieldsDict, manager);
+        }catch (IOException e){
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "IOException", e);
+            return newConnections;
+            //TODO: decide
+        }
+
+        LoggerManager.getInstance().mutableInfo(this.getRoutingTableString(), Optional.of(this.getClass().getName()), Optional.of("fromSerialize"));
+        return newConnections;
+    }
+
+    private synchronized void removeNonDirectConnections(Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict){
+        Enumeration<NodeName> keys = routingTableFields.keys();
+
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            NodeName value = routingTableFields.get(key).getRemoteNodeName();
+
+            if(oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key))){
+                routingTableFields.remove(key);
+            }
+        }
+    }
+
+    private synchronized List<ClientSocketHandler> addNewEntries(Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict, ConnectionManager manager) throws IOException {
+        Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
+        List<ClientSocketHandler> newConnections = new ArrayList<>();
+
+        //direct connection
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            NodeName value = oldRoutingTableFieldsDict.get(key);
+            if (key.equals(value) && routingTableFields.get(key) == null) {
+                newConnections.add(socketOpen(key, manager));
+            } else if (key.equals(value) && !routingTableFields.get(key).getRemoteNodeName().equals(key)) {
+                routingTableFields.remove(key);
+                newConnections.add(socketOpen(key, manager));
+            }
+        }
+
+        //non direct connection
+        keys = oldRoutingTableFieldsDict.keys();
+        while (keys.hasMoreElements()) {
+            NodeName key = keys.nextElement();
+            NodeName value = oldRoutingTableFieldsDict.get(key);
+            if(!key.equals(value)  && routingTableFields.get(key) == null) {
+                routingTableFields.put(key,routingTableFields.get(value));
+            }
+        }
+
+        return newConnections;
+    }
+
+    private ClientSocketHandler socketOpen(NodeName destination, ConnectionManager manager) throws IOException {
+        Socket socket = new Socket(destination.getIP(),destination.getPort());
+        ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, destination,manager);
+        ThreadPool.submit(joinerHandler);
+
+        routingTableFields.put(destination, joinerHandler);
+
+        return joinerHandler;
+    }
+
 }
 

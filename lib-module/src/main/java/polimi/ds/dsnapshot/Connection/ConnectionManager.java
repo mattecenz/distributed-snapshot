@@ -771,12 +771,25 @@ public class ConnectionManager {
         if(result) {
             LoggerManager.getInstance().mutableInfo("restoring...", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
             try {
+                //restore network
+                List<ClientSocketHandler> newConnections = snapshotManager.restoreSnapshotRoutingTable(snapshotIdentifier);
+                for(ClientSocketHandler clientSocketHandler : newConnections){
+                    clientSocketHandler.sendMessage(new DirectConnectionMsg(this.name));
+                }
+                //add to handlerList
+                synchronized (this.handlerList) {
+                    this.handlerList.addAll(newConnections);
+                }
+                LoggerManager.getInstance().mutableInfo("routing table restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+                //restore app
                 snapshotManager.restoreSnapshot(snapshotIdentifier);
-                LoggerManager.getInstance().mutableInfo("snapshot restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
             } catch (EventException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
                 //todo decide
             }
+            LoggerManager.getInstance().mutableInfo("app state restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            LoggerManager.getInstance().mutableInfo("messages restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            LoggerManager.getInstance().mutableInfo("snapshot completely restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
         }
         else{
             LoggerManager.getInstance().mutableInfo("negative response cannot restore the snapshot, abort procedure!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
