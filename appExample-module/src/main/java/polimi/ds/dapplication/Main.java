@@ -1,10 +1,7 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
-import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
-import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
-import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
-import polimi.ds.dsnapshot.Exception.DSException;
+import polimi.ds.dsnapshot.Exception.*;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
 import java.util.Scanner;
@@ -86,6 +83,9 @@ public class Main {
             System.err.println("The client you tried to contact is unreachable. Are you sure it is in the network?");
         } catch (DSMessageToMyselfException e) {
             SystemOutTS.println("You are sending a message to yourself, try choosing another destination.");
+        } catch (DSConnectionUnavailableException | DSNetworkCrashedException e ) {
+            System.err.println("The connection has been suspended due to a potential node crash. " +
+                    "Please restore the network and start the recovery procedure");
         } catch (DSException e) {
             System.err.println("Generic DS exception: " + e.getMessage());
         }
@@ -108,8 +108,21 @@ public class Main {
                         sendMessage();
                     }
                     case "exit" -> {
-                        JavaDistributedSnapshot.getInstance().leaveNetwork();
-                        finished=true;
+                        try {
+                            JavaDistributedSnapshot.getInstance().leaveNetwork();
+                            finished=true;
+                        }
+                        catch (DSException e){ // Exception for when the network crashed
+                            SystemOutTS.println(e.getMessage());
+                        }
+                    }
+                    case"reconnect" -> {
+                        try{
+                            JavaDistributedSnapshot.getInstance().reconnect();
+                        }
+                        catch (DSException e){
+                            SystemOutTS.println(e.getMessage());
+                        }
                     }
                     case "snapshot" ->{
                         // Is there something else to do ? idk
@@ -131,6 +144,7 @@ public class Main {
                                 "exit:\t\t exit the network and the program \n" +
                                 "snapshot:\t manually start a snapshot \n" +
                                 "history:\t list all received messages \n" +
+                                "reconnect:\t reconnect to the parent node (only use when crashes happen) \n"+
                                 "surprise:\t are you brave enough to discover it? \n"+
                                 "");
                     }
@@ -151,7 +165,7 @@ public class Main {
 
         boolean done =false;
 
-        while(!done){
+        while(!done) {
             try {
 
                 SystemOutTS.print("Enter ip of the node you want to connect to: ");
@@ -162,12 +176,11 @@ public class Main {
                 int port = retryInputInteger();
 
                 JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
-                done=true;
+                done = true;
             } catch (DSNodeUnreachableException e) {
                 // The error output stream for the moment can be used without locks
                 System.err.println("The node you are trying to contact is unreachable. Are you sure it is in the network?");
-            }
-            catch (DSMessageToMyselfException e) {
+            } catch (DSMessageToMyselfException e) {
                 System.err.println("You cannot connect to yourself! Please try again.");
             } catch (DSException e) {
                 System.err.println("Generic DS exception: " + e.getMessage());

@@ -1,15 +1,14 @@
 package polimi.ds.dsnapshot.Connection;
 
 import polimi.ds.dsnapshot.Connection.Messages.PingPongMessage;
-import polimi.ds.dsnapshot.Exception.ConnectionException;
+import polimi.ds.dsnapshot.Exception.AckTimeoutExpiredException;
+import polimi.ds.dsnapshot.Exception.SocketClosedException;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.logging.Level;
 
 
 public class PingPongManager {
@@ -32,8 +31,11 @@ public class PingPongManager {
         try {
             pingPongMessage = new PingPongMessage(isFirstPing);
             manager.sendMessageSynchronized(pingPongMessage,handler);
-        } catch (ConnectionException e) {
+        } catch (AckTimeoutExpiredException e) {
             pingFail(pingPongMessage.getSequenceNumber());
+            return;
+        } catch (SocketClosedException e) {
+            LoggerManager.getInstance().mutableInfo("The socket has been closed. It is not possible to send messages anymore.", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return;
         }
         //startThread
@@ -54,8 +56,13 @@ public class PingPongManager {
             //todo: manage exception
             LoggerManager.getInstance().mutableInfo( "[PingPongManager] ping pong with node: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort()+ " has been stopped throwing InterruptedException", Optional.of(this.getClass().getName()), Optional.of("sendPing"));
             return;
-        } catch (ConnectionException e){
+        } catch (AckTimeoutExpiredException e){
             pingFail(pingPongMessage.getSequenceNumber());
+            manager.initiateCrashProcedure(handler);
+            return;
+        } catch (SocketClosedException e) {
+            LoggerManager.getInstance().mutableInfo("The socket has been closed. It is not possible to send messages anymore.", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+            manager.initiateCrashProcedure(handler);
             return;
         }
         LoggerManager.getInstance().mutableInfo( "[PingPongManager] ping pong with node: " + handler.getRemoteNodeName().getIP() + ":" + handler.getRemoteNodeName().getPort()+ " has been stopped without exception", Optional.of(this.getClass().getName()), Optional.of("sendPing"));

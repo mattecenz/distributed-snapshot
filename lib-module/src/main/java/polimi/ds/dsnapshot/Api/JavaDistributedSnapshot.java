@@ -58,13 +58,17 @@ public class JavaDistributedSnapshot{
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
     }
 
-    public void leaveNetwork() {
+    public void leaveNetwork() throws DSException{
         applicationLayerInterface = null;
         connectionManager.exitNetwork();
     }
 
     public void applicationExitNotify(NodeName nodeName){
         applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
+    }
+
+    public void reconnect() throws DSException {
+        connectionManager.reconnectToAnchor();
     }
 
     public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSException {

@@ -64,6 +64,18 @@ public class ConnectionManager {
      * It is not final as it might fail to connect to the port.
      */
     private ServerSocket serverSocket;
+    /**
+     * Shared variable which indicates if the manager is in panic mode (after a crash) or not.
+     */
+    private boolean panicMode=false;
+    /**
+     * Name of the parent who crashed. Useful for reconnection procedures
+     */
+    private Optional<NodeName> nameOfCrashedParent = Optional.empty();
+    /**
+     * Name of the children who crashed. Useful for reconnection procedures
+     */
+    private final List<NodeName> nameOfCrashedChildren = new ArrayList<>();
 
     double directConnectionProbability = Config.getDouble("network.directConnectionProbability");
 
@@ -160,17 +172,21 @@ public class ConnectionManager {
             ClientSocketHandler handler = this.routingTable.getNextHop(destNode);
 
             return this.sendMessageSynchronized(m,handler);
+        } catch (SocketClosedException e) {
+            LoggerManager.getInstance().mutableInfo("The socket has been closed. It is not possible to send messages anymore.", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+            return false;
         } catch (RoutingTableNodeNotPresentException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "RoutingTableNodeNotPresentException", e);
             return false;
-        } catch (ConnectionException e) {
+        } catch (AckTimeoutExpiredException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "ConnectionException", e);
             //todo: ack not received
             return false;
         }
     }
 
-    protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws ConnectionException{
+    protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws AckTimeoutExpiredException, SocketClosedException {
+
         LoggerManager.getInstance().mutableInfo("Sending a message: "+ m.getClass().getName() +" to "+handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort()+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         LoggerManager.getInstance().mutableInfo("Preparing for receiving an ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
         int seqn = m.getSequenceNumber();
@@ -178,17 +194,10 @@ public class ConnectionManager {
         Object lock=new Object();
         this.ackHandler.insertAckId(seqn, lock);
 
-        LoggerManager.getInstance().mutableInfo("Sending the message ...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
-        boolean b = handler.sendMessage(m);
-
-        if(!b) {
-            LoggerManager.getInstance().mutableInfo("Something went wrong while sending the message...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
-            return false;
-        }
-
-        LoggerManager.getInstance().mutableInfo("Sent, now waiting for ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
-
-        try {
+        try{
+            LoggerManager.getInstance().mutableInfo("Sending the message ...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+            handler.sendMessage(m);
+            LoggerManager.getInstance().mutableInfo("Sent, now waiting for ack...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
             synchronized (lock) {
                 lock.wait(Config.getInt("network.ackTimeout"));
@@ -196,8 +205,7 @@ public class ConnectionManager {
             // Once I have finished I have two possibilities. Either the ack has been removed from the list or not
             // If it has been removed then an exception is thrown.
             this.ackHandler.removeAckId(seqn);
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
             return false;
         }
@@ -206,10 +214,10 @@ public class ConnectionManager {
             LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return true;
         }
+
         // TODO: handle error of ack
-        // If no exception is thrown then it means that
         LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
-        throw new ConnectionException("[ConnectionManager] Timeout reached waiting for ack");
+        throw new AckTimeoutExpiredException();
     }
 
     /**
@@ -272,17 +280,39 @@ public class ConnectionManager {
         }catch(ConnectException e){
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "The node you are trying to connect to is unreachable!", e);
             throw new DSNodeUnreachableException();
-        }
-        catch(IOException e){
+        } catch(IOException e){
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            // Since the handler will crash just put application in panic mode
+            this.initiatePanicMode();
+            throw new DSConnectionUnavailableException();
         }
-        catch (ConnectionException e) {
-            //todo: ack not received
+        catch (AckTimeoutExpiredException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Error waiting for ack:", e);
+            throw new DSConnectionUnavailableException();
         } catch (RoutingTableNodeAlreadyPresentException e) {
             // Should be impossible to reach this exception
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Node already present in routing table: ", e);
         }
+    }
+
+    public void reconnectToAnchor() throws DSException  {
+        if(this.nameOfCrashedParent.isEmpty()) {
+            LoggerManager.getInstance().mutableInfo("The parent has not crashed, do nothing.", Optional.of(this.getClass().getName()), Optional.of("reconnectToAnchor"));
+            throw new DSParentNotCrashedException();
+        }
+
+        // // This method works also when in panic mode. So try to reconnect if possible
+        this.joinNetwork(this.nameOfCrashedParent.get());
+
+        // Once you have successfully reconnected you need to send a message to him telling him that somebody crashed
+        // TODO: decide a bit if its ok to leave it commented
+//        try {
+//            this.spt.getAnchorNodeHandler().sendMessage(new MessageNodeCrashed());
+//        } catch (SocketClosedException | SpanningTreeNoAnchorNodeException e) {
+//            // Nothing to do
+//        }
     }
 
     /**
@@ -293,12 +323,31 @@ public class ConnectionManager {
     *                for the incoming connection.
     */
     synchronized void receiveNewJoinMessage(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) {
+        if(this.panicMode) {
+
+            if (this.nameOfCrashedChildren.contains(joinMsg.getJoinerName())){
+                LoggerManager.getInstance().mutableInfo("A saved children wants to reconnect, I'll allow it this time.", Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
+                this.nameOfCrashedChildren.remove(joinMsg.getJoinerName());
+            }
+            else {
+                LoggerManager.getInstance().mutableInfo("Panic mode activated, cannot accept new connections anymore...", Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
+                // Dereference the connection
+                this.unNamedHandlerList.remove(unnamedHandler);
+                return;
+            }
+        }
+
         try {
-            ClientSocketHandler handler = receiveAdoptionOrJoinRequest(joinMsg, unnamedHandler);
-            sendJoinForwardMsg(joinMsg,handler);
+            ClientSocketHandler handler = this.receiveAdoptionOrJoinRequest(joinMsg, unnamedHandler);
+            this.sendJoinForwardMsg(joinMsg,handler);
+
+            // This is not necessary but it is useful to force the child in panic mode.
+            // TODO: decide
+//            if(this.panicMode) {
+//                handler.sendMessage(new MessageNodeCrashed());
+//            }
         } catch (RoutingTableNodeAlreadyPresentException e) {//TODO: decide
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Node already exists in routing table: ", e);
-            return;
         }
     }
 
@@ -324,12 +373,14 @@ public class ConnectionManager {
         // Since the join is a synchronous process we need to send back the ack
         MessageAck msgAck = new MessageAck(joinMsg.getSequenceNumber());
         LoggerManager.getInstance().mutableInfo("Join request ack back", Optional.of(this.getClass().getName()), Optional.of("receiveAdoptionOrJoinRequest"));
-        boolean ret=false;
-        // TODO: refactor a bit with exceptions
-        while(!ret){
-            ret=handler.sendMessage(msgAck);
-            if(!ret) LoggerManager.getInstance().mutableInfo("Something went wrong. Maybe it was a lock problem, so retry...", Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
+
+        try {
+            handler.sendMessage(msgAck);
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            this.initiateCrashProcedure(handler);
         }
+
         return handler;
     }
 
@@ -339,9 +390,17 @@ public class ConnectionManager {
 
         LoggerManager.getInstance().mutableInfo("Forwarding info to the other nodes.", Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
 
-        for(ClientSocketHandler h : this.handlerList){
-            if(h!=handler) h.sendMessage(m);
+        for (ClientSocketHandler h : this.handlerList) {
+            if (h != handler) {
+                try {
+                    h.sendMessage(m);
+                } catch (SocketClosedException e) {
+                    LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                    this.initiateCrashProcedure(handler);
+                }
+            }
         }
+
     }
 
     /**
@@ -399,10 +458,7 @@ public class ConnectionManager {
                     this.handlerList.add(joinerHandler);
                 }
                 //send to joiner a message to create a direct connection
-                boolean ret=false;
-                while(!ret) {
-                    ret = joinerHandler.sendMessage(new DirectConnectionMsg(this.name));
-                }
+                joinerHandler.sendMessage(new DirectConnectionMsg(this.name));
                 //add node in routing table
                 this.addNewRoutingTableEntry(msg.getJoinerName(), joinerHandler);
                 // Do not to spt as it is not a direct connection
@@ -410,6 +466,9 @@ public class ConnectionManager {
                 //creating undirected path to the joiner node with the anchor node
                 this.routingTable.addPath(msg.getJoinerName(),handler);
             }
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            this.initiateCrashProcedure(handler);
         } catch (RoutingTableNodeAlreadyPresentException e) {
             // Not much we can do
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, a node already in the routing table asked to connect", e);
@@ -418,7 +477,12 @@ public class ConnectionManager {
     // </editor-fold>
 
     // <editor-fold desc="Exit procedure">
-    public synchronized void exitNetwork() {
+    public synchronized void exitNetwork() throws DSException {
+        if(this.panicMode) {
+            LoggerManager.getInstance().mutableInfo("Panic mode activated, cannot manually leave the network anymore...", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
+            throw new DSNetworkCrashedException();
+        }
+
         LoggerManager.getInstance().mutableInfo("Exit procedure started", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
 
         //stop children ping pong
@@ -442,8 +506,14 @@ public class ConnectionManager {
         //send exit message to all child
 
         ExitMsg m = new ExitMsg(handler.getRemoteNodeName());
-        this.forwardMessageAlongSPT(m, Optional.empty());
-        LoggerManager.getInstance().mutableInfo("send exit msg on spt", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
+        try {
+            this.forwardMessageAlongSPT(m, Optional.empty());
+            LoggerManager.getInstance().mutableInfo("send exit msg on spt", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            // since the node is exiting the network just enter panic mode and do nothing else
+            this.initiatePanicMode();
+        }
 
         //clear handler list
         synchronized (this.unNamedHandlerList){
@@ -500,6 +570,85 @@ public class ConnectionManager {
         JavaDistributedSnapshot.getInstance().applicationExitNotify(handler.getRemoteNodeName());
 
     }
+
+    synchronized void initiateCrashProcedure(ClientSocketHandler handler) {
+        // When a crash happens the safest thing to do is to block everything from executing.
+        // Which means block the application from sending messages.
+        // The easiest way to do it is by setting a shared variable to true which indicates that the application
+        // has gone in a "panic" state. (The better way to do it would be to use a state pattern)
+
+        // If the handler was the father, then save his name as this might be useful for reconnections
+        // For direct connections do not save them.
+        try {
+            if(this.spt.getAnchorNodeHandler().equals(handler)) {
+                this.nameOfCrashedParent=Optional.of(handler.getRemoteNodeName());
+                this.spt.removeAnchorNodeHandler();
+            }
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            // Extreme case of the node without a father
+            this.nameOfCrashedParent=Optional.empty();
+        }
+
+        if(this.spt.getChildren().contains(handler)){
+            this.nameOfCrashedChildren.add(handler.getRemoteNodeName());
+        }
+
+        // Remove the handler from everywhere
+
+        handler.stopPingPong();
+
+        try {
+            this.routingTable.removePath(handler.getRemoteNodeName());
+        } catch (RoutingTableNodeNotPresentException e) {
+            // Do nothing
+        }
+
+        this.routingTable.removeAllIndirectPath(handler);
+        this.handlerList.remove(handler);
+        handler.close();
+
+        List<ClientSocketHandler> children = this.spt.getChildren();
+        if(children.contains(handler)){
+            this.spt.removeChild(handler);
+        }
+
+        this.initiatePanicMode();
+
+    }
+
+    synchronized void initiatePanicMode(){
+        if(this.panicMode) return;
+
+        this.panicMode = true;
+        // This socket will be closed now.
+        // If multiple sockets crash at the same time only one will activate the panic mode.
+
+        // When the mode is activated then send a message in broadcast to force the stop of operations
+
+        MessageNodeCrashed m = new MessageNodeCrashed();
+
+        try {
+            ClientSocketHandler anchorHandler = this.spt.getAnchorNodeHandler();
+            anchorHandler.sendMessage(m);
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Node has no associated handler for this node, do not forward along him", e);
+        } catch (SocketClosedException e) {
+            // Do nothing
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket of the anchor has been already closed", e);
+        }
+
+        // Forward along children
+        for (ClientSocketHandler h : this.spt.getChildren()) {
+            try{
+                h.sendMessage(m);
+            } catch (SocketClosedException e) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket of a child has been already closed", e);
+                // Do nothing, continue to forward
+            }
+        }
+
+    }
+
     /**
      * Handles the assignment of a new anchor node when the current anchor node exits the network.
      * This method determines whether a path to the new anchor exists in the routing table
@@ -546,8 +695,12 @@ public class ConnectionManager {
         ThreadPool.submit(()->{
             try {
                 this.joinNetwork(nodeName,msg);
+            }  catch (DSConnectionUnavailableException e) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            } catch (DSNodeUnreachableException e){
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"Node unreachable when establishing connection with new Anchor", e);
             } catch (DSException e) {
-                LoggerManager.instanceGetLogger().log(Level.SEVERE,"Node unreachable when ensablish connection with new Anchor", e);
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"Generic DS exception ca+tured: ", e);
             }
         });
     }
@@ -555,11 +708,16 @@ public class ConnectionManager {
     private void sendExitNotify(NodeName nodeName, Optional<ClientSocketHandler> handler){
         LoggerManager.getInstance().mutableInfo("send exit notify", Optional.of(this.getClass().getName()), Optional.of("sendExitNotify"));
         ExitNotify exitNotify = new ExitNotify(nodeName);
-        this.forwardMessageAlongSPT(exitNotify, handler);
+        try {
+            this.forwardMessageAlongSPT(exitNotify, handler);
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            this.initiatePanicMode();
+        }
     }
 
     private void receiveExitNotify(ExitNotify exitNotify, ClientSocketHandler handler){
-            LoggerManager.getInstance().mutableInfo("received exit notify for node: " +exitNotify.getExitName().getIP()+ ":" +exitNotify.getExitName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
+        LoggerManager.getInstance().mutableInfo("received exit notify for node: " +exitNotify.getExitName().getIP()+ ":" +exitNotify.getExitName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
         try {
             this.routingTable.removePath(exitNotify.getExitName());
         } catch (RoutingTableNodeNotPresentException e) {
@@ -573,8 +731,13 @@ public class ConnectionManager {
 
     // <editor-fold desc="Snapshot procedure">
     private void forwardToken(TokenMessage tokenMessage){
-        for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(tokenMessage);
+        try {
+            for (ClientSocketHandler h : this.handlerList) {
+                h.sendMessage(tokenMessage);
+            }
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here. The network is assumed stable during the snapshot!", e);
+            this.initiatePanicMode();
         }
     }
 
@@ -592,8 +755,14 @@ public class ConnectionManager {
         this.snapshotManager.manageSnapshotToken(tokenName,name);
 
         //notify the rest of the network
-        for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(tokenMessage);
+        try {
+            for (ClientSocketHandler h : this.handlerList) {
+                h.sendMessage(tokenMessage);
+            }
+        }
+        catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here. The network is assumed stable during the snapshot!", e);
+            this.initiatePanicMode();
         }
     }
     // </editor-fold>
@@ -603,32 +772,34 @@ public class ConnectionManager {
      * It sends the message along all paths of the spanning tree saved
      * @param msg message to forward
      * @param receivedHandler handler from which the message has been received
-     * @return true if everything went well.
+     * @throws SocketClosedException if a socket has been closed due to a crash
      */
-    private boolean forwardMessageAlongSPT(Message msg, Optional<ClientSocketHandler> receivedHandler){
-        boolean ok = true;
-
+    private void forwardMessageAlongSPT(Message msg, Optional<ClientSocketHandler> receivedHandler) throws SocketClosedException{
         // I can just check the references for simplicity
+
+        // A bit of a nested exception, maybe refactor?
         try {
-            ClientSocketHandler anchorHandler=this.spt.getAnchorNodeHandler();
+            ClientSocketHandler anchorHandler = this.spt.getAnchorNodeHandler();
             if (receivedHandler.isEmpty() || receivedHandler.get() != anchorHandler) {
-                ok = anchorHandler.sendMessage(msg);
+                anchorHandler.sendMessage(msg);
             }
-        }catch(SpanningTreeNoAnchorNodeException e){
+        } catch (SpanningTreeNoAnchorNodeException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Node has no associated handler for this node, do not forward along him", e);
         }
 
         // Forward along children
-        for(ClientSocketHandler h : this.spt.getChildren()){
+        for (ClientSocketHandler h : this.spt.getChildren()) {
             if (receivedHandler.isEmpty() || receivedHandler.get() != h) {
-                ok = h.sendMessage(msg) || ok;
+                h.sendMessage(msg);
             }
         }
-        // TODO: fix corner cases of the network
-        return ok;
     }
 
     public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSException{
+        if(this.panicMode){
+            LoggerManager.getInstance().mutableInfo("Panic mode activated, do not send messages anymore...",Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
+            throw new DSNetworkCrashedException();
+        }
         if(destinationNodeName.equals(this.name)) throw new DSMessageToMyselfException();
         ApplicationMessage message = new ApplicationMessage(content, this.name, destinationNodeName);
         this.forwardMessage(message, destinationNodeName);
@@ -644,12 +815,22 @@ public class ConnectionManager {
             // Do discovery. If something goes wrong an exception is thrown.
             this.sendDiscoveryMessage(destinationNodeName);
 
+            // Again a bit of duplicated try-catch statement, maybe refactor
             try {
                 ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
                 handler.sendMessage(message);
             } catch (RoutingTableNodeNotPresentException ex) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "We should not be here, the node should be present in the rt", ex);
+            } catch (SocketClosedException ex) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                this.initiatePanicMode();
+                throw new DSConnectionUnavailableException();
             }
+        }
+        catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            this.initiatePanicMode();
+            throw new DSConnectionUnavailableException();
         }
     }
 
@@ -661,33 +842,33 @@ public class ConnectionManager {
     private void sendDiscoveryMessage(NodeName destinationNodeName) throws DSException{
         MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
 
-        boolean ok = this.forwardMessageAlongSPT(msgd, Optional.empty());
+        try{
+            this.forwardMessageAlongSPT(msgd, Optional.empty());
 
-        if(!ok) return;
+            // Do the same as a synchronized message, wait for the reply
+            // TODO: a bit of duplicated code
+            Object lock = new Object();
+            this.ackHandler.insertAckId(msgd.getSequenceNumber(), lock);
 
-        // Do the same as a synchronized message, wait for the reply
-        // TODO: a bit of duplicated code
-        Object lock = new Object();
-        this.ackHandler.insertAckId(msgd.getSequenceNumber(), lock);
-
-        try {
             // Wait for a timeout, if ack has been received then all good, else something bad happened.
             synchronized (lock){
                 lock.wait(Config.getInt("network.ackTimeout"));
             }
 
             this.ackHandler.removeAckId(msgd.getSequenceNumber());
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
             return;
-        }
-        catch (AckHandlerAlreadyRemovedException e) {
+        } catch (AckHandlerAlreadyRemovedException e) {
             // If a runtime exception is thrown it means that the ack has been removed, so it has been received.
             LoggerManager.getInstance().mutableInfo("Ack received, can resume operations...", Optional.of(this.getClass().getName()), Optional.of("sendDiscoveryMessage"));
             return;
+        } catch (SocketClosedException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+            this.initiatePanicMode();
+            return;
         }
-        // If no exception is thrown then it means that
+        // If no exception is thrown then it means that the timeout has been ended
         LoggerManager.instanceGetLogger().log(Level.WARNING, "Timeout reached waiting for ack.");
 
         throw new DSNodeUnreachableException();
@@ -705,7 +886,44 @@ public class ConnectionManager {
             // TODO: need error checking here, and decide what we should do.
             //  This message will be sent asynchronously, so we could also send it in another thread.
             LoggerManager.getInstance().mutableInfo("sending ack require from: "+ m.getClass().getName()+ m.getSequenceNumber(), Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
-            handler.sendMessage(new MessageAck(m.getSequenceNumber()));
+            try {
+                handler.sendMessage(new MessageAck(m.getSequenceNumber()));
+            } catch (SocketClosedException e) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                this.initiateCrashProcedure(handler);
+            }
+        }
+
+        // A message can be received in panic mode only if it is a ping-pong
+        // or if it is a join request from an already existing node
+        switch(m.getInternalID()){
+            case MESSAGE_PINGPONG -> {
+                PingPongMessage pingPongMessage = (PingPongMessage) m;
+                if(pingPongMessage.isFistPing()) {
+                    try {
+                        this.spt.addChild(handler);
+                    } catch (SpanningTreeChildAlreadyPresentException e) {
+                        // todo: decide
+                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Spanning tree exception", e);
+                    }
+                    handler.startPingPong(false); //the client who send U the ping as U as father
+                }
+            }
+            case MESSAGE_ACK -> {
+                LoggerManager.getInstance().mutableInfo("ack received [sequence code: " + m.getSequenceNumber() + "]", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
+                // If the message received is an ack then remove it from the ack handler
+                try {
+                    this.ackHandler.removeAckId(m.getSequenceNumber());
+                } catch (AckHandlerAlreadyRemovedException e) {
+                    LoggerManager.getInstance().mutableInfo("Ack already removed from the ack map", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
+                    // LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
+                }
+            }
+        }
+
+        if(this.panicMode){
+            LoggerManager.getInstance().mutableInfo("Panic mode activated, the message received will be lost...",Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
+            return;
         }
 
         // Switch the ID of the message and do what you need to do:
@@ -739,28 +957,6 @@ public class ConnectionManager {
             case MESSAGE_DIRECTCONNECTION -> {
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "An already known node tried to directly connect with this node.");
             }
-            case MESSAGE_ACK -> {
-                LoggerManager.getInstance().mutableInfo("ack received [sequence code: " + m.getSequenceNumber() + "]", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
-                // If the message received is an ack then remove it from the ack handler
-                try {
-                    this.ackHandler.removeAckId(m.getSequenceNumber());
-                } catch (AckHandlerAlreadyRemovedException e) {
-                    LoggerManager.getInstance().mutableInfo("Ack already removed from the ack map", Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
-                    // LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
-                }
-            }
-            case MESSAGE_PINGPONG -> {
-                PingPongMessage pingPongMessage = (PingPongMessage) m;
-                if(pingPongMessage.isFistPing()) {
-                    try {
-                        this.spt.addChild(handler);
-                    } catch (SpanningTreeChildAlreadyPresentException e) {
-                        // todo: decide
-                        LoggerManager.instanceGetLogger().log(Level.SEVERE, "Spanning tree exception", e);
-                    }
-                    handler.startPingPong(false); //the client who send U the ping as U as father
-                }
-            }
             case MESSAGE_APP -> {
                 ApplicationMessage app = (ApplicationMessage)m;
                 if(app.getReceiver().equals(this.name)) {
@@ -782,7 +978,12 @@ public class ConnectionManager {
 
                     // Send ack back
                     MessageDiscoveryReply msgdr = new MessageDiscoveryReply(msgd.getSequenceNumber(), this.name, msgd.getOriginName());
-                    handler.sendMessage(msgdr);
+                    try {
+                        handler.sendMessage(msgdr);
+                    } catch (SocketClosedException e) {
+                        LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                        this.initiateCrashProcedure(handler);
+                    }
 
                     // return, nothing else to do
                     return;
@@ -805,7 +1006,15 @@ public class ConnectionManager {
                     LoggerManager.getInstance().mutableInfo( "Node not present, forwarding", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
 
                     // Forward to all the handlers in the spt except the one you received it from
-                    this.forwardMessageAlongSPT(msgd, Optional.of(handler));
+                    // Again a bit of nested exceptions
+                    try {
+                        this.forwardMessageAlongSPT(msgd, Optional.of(handler));
+                    } catch (SocketClosedException ex) {
+                        LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                        this.initiatePanicMode();
+                    }
+                } catch (SocketClosedException e) {
+                    LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
                 }
             }
             case MESSAGE_DISCOVERYREPLY -> {
@@ -837,8 +1046,19 @@ public class ConnectionManager {
                 }catch(RoutingTableNodeNotPresentException e){
                     System.err.println("[ConnectionManager] Node not present, forwarding: " + e.getMessage());
 
-                    this.forwardMessageAlongSPT(msgdr, Optional.of(handler));
+                    // Again a bit of nested exceptions
+                    try {
+                        this.forwardMessageAlongSPT(msgdr, Optional.of(handler));
+                    } catch (SocketClosedException ex) {
+                        LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
+                        this.initiatePanicMode();
+                    }
+                } catch (SocketClosedException e) {
+                    LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been closed. It is not possible to send messages anymore.", e);
                 }
+            }
+            case MESSAGE_NODE_CRASHED -> {
+                this.initiatePanicMode();
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
