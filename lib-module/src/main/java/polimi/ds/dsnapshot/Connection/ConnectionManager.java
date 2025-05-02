@@ -36,6 +36,13 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
 import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeChildAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeNoAnchorNodeException;
+import polimi.ds.dsnapshot.Exception.Snapshot.Snapshot2PCException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotPendingRequestManagerException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotRestoreException;
 import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
 import polimi.ds.dsnapshot.Snapshot.SnapshotPendingRequestManager;
@@ -601,7 +608,11 @@ public class ConnectionManager {
     public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreLocalException, SnapshotRestoreRemoteException {
         LoggerManager.getInstance().mutableInfo("starting snapshot restore procedure (2PC)", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
-        if(! snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier)) throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
+        try{
+            snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier);
+        } catch (Snapshot2PCException e){
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot! " + e.getMessage());
+        }
 
         synchronized (this){
             LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
@@ -657,12 +668,18 @@ public class ConnectionManager {
 
     private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
         LoggerManager.getInstance().mutableInfo("the node has received a restore request", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
-        boolean snapshotValid = snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
-
-        if(!snapshotValid || this.spt.isNodeLeaf()) {
-            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, snapshotValid));
+        try {
+            snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
+        } catch (Snapshot2PCException e){
+            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, false));
             return;
         }
+
+        if(this.spt.isNodeLeaf()) {
+            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, true));
+            return;
+        }
+
         SnapshotIdentifier snapshotIdentifier = restoreSnapshotRequest.getSnapshotIdentifier();
         synchronized (this){
             LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
@@ -785,6 +802,11 @@ public class ConnectionManager {
                 snapshotManager.restoreSnapshot(snapshotIdentifier);
             } catch (EventException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
+                return;
+                //todo decide
+            }catch (SnapshotRestoreException e){
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
+                return;
                 //todo decide
             }
             LoggerManager.getInstance().mutableInfo("app state restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));

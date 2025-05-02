@@ -2,9 +2,9 @@ package polimi.ds.dsnapshot.Connection.SnashotSerializable.SPT;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.SnapshotSerializable;
-import polimi.ds.dsnapshot.Exception.SpanningTreeChildAlreadyPresentException;
-import polimi.ds.dsnapshot.Exception.SpanningTreeChildNotPresentException;
-import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeChildAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeChildNotPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeNoAnchorNodeException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.Serializable;

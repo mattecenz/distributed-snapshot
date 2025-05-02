@@ -4,8 +4,8 @@ import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.SnapshotSerializable;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeNotPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 

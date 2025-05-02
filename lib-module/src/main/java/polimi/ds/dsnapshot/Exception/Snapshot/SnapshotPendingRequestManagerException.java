@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Exception;
+package polimi.ds.dsnapshot.Exception.Snapshot;
 
 public class SnapshotPendingRequestManagerException extends Exception {
     public SnapshotPendingRequestManagerException(String message) {

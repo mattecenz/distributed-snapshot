@@ -8,8 +8,8 @@ import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeNotPresentException;
 
 import java.io.IOException;
 import java.io.OutputStream;

@@ -2,7 +2,7 @@ package polimi.ds.dsnapshot.Snapshot;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
-import polimi.ds.dsnapshot.Exception.SnapshotPendingRequestManagerException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotPendingRequestManagerException;
 
 import java.util.ArrayList;
 import java.util.List;

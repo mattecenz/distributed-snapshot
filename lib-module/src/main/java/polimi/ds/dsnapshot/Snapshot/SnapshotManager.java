@@ -6,12 +6,12 @@ import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
 import polimi.ds.dsnapshot.Connection.NodeName;
-import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
-import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
+import polimi.ds.dsnapshot.Exception.Snapshot.Snapshot2PCException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotRestoreException;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
@@ -134,11 +134,11 @@ public class SnapshotManager {
     // </editor-fold>
 
     // <editor-fold desc="restore Snapshot procedure">
-    public synchronized boolean reEnteringNodeValidateSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
+    public synchronized void reEnteringNodeValidateSnapshotRequest(SnapshotIdentifier snapshotIdentifier) throws Snapshot2PCException {
         LoggerManager.getInstance().mutableInfo("starting validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
         if (!lastSnapshotState.isEmpty()) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
-            return false;
+            throw new Snapshot2PCException("Snapshot can't be validated due to the presence of a competing snapshot");
         }
 
         File file = getLastSnapshotFile(snapshotIdentifier, this.connectionManager.getName().getPort());
@@ -151,20 +151,22 @@ public class SnapshotManager {
         //no snapshot file found
         if(state == null) {
             LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, snapshot file can't be found");
-            return false;
+            throw new Snapshot2PCException("Snapshot can't be validated, snapshot file can't be found");
         }
 
-        if(!connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree())) return false;
+        if(!connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree())) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, inconsistent spanning tree");
+            throw new Snapshot2PCException("Snapshot can't be validated, inconsistent spanning tree");
+        }
 
         lastSnapshotState.put(snapshotIdentifier, state);
         LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
 
         //validate spt
-        return true;
     }
 
-    public synchronized boolean validateSnapshotRequest(RestoreSnapshotRequest resetSnapshotRequest) {
-        return reEnteringNodeValidateSnapshotRequest(resetSnapshotRequest.getSnapshotIdentifier());
+    public synchronized void validateSnapshotRequest(RestoreSnapshotRequest resetSnapshotRequest) throws Snapshot2PCException {
+        reEnteringNodeValidateSnapshotRequest(resetSnapshotRequest.getSnapshotIdentifier());
     }
 
     public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
@@ -172,24 +174,22 @@ public class SnapshotManager {
         lastSnapshotState.remove(snapshotIdentifier);
     }
 
-    public synchronized List<ClientSocketHandler> restoreSnapshotRoutingTable(SnapshotIdentifier snapshotIdentifier) {
+    public synchronized List<ClientSocketHandler> restoreSnapshotRoutingTable(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreException {
         SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
         if(state == null) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
-            //TODO ad exception
-            return new ArrayList<>();
+            throw new SnapshotRestoreException("try to restore a snapshot without agreement");
         }
 
         return connectionManager.getRoutingTable().fromSerialize(state.getRoutingTable(), connectionManager);
     }
 
-    public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException{
+    public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException, SnapshotRestoreException {
         LoggerManager.getInstance().mutableInfo("starting restore the snapshot after 2pc agreement", Optional.of(this.getClass().getName()), Optional.of("restoreSnapshot"));
         SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
         if(state == null) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
-            //TODO ad exception
-            return;
+            throw new SnapshotRestoreException("try to restore a snapshot without agreement");
         }
         lastSnapshotState.remove(snapshotIdentifier);
 
