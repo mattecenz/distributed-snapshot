@@ -368,6 +368,9 @@ public class ConnectionManager {
             synchronized (this.unNamedHandlerList){
                 this.unNamedHandlerList.remove(unnamedHandler);
             }
+            synchronized (this.handlerList) {
+                this.handlerList.add(handler);
+            }
             // Add a new routing table entry
             this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
             // Since it is not a direct connection it does not need to be added to the spt
@@ -580,6 +583,7 @@ public class ConnectionManager {
     // <editor-fold desc="Snapshot procedure">
     private void forwardToken(TokenMessage tokenMessage){
         for(ClientSocketHandler h : this.handlerList){
+            LoggerManager.getInstance().mutableInfo("forwarding token to: "+ h.getRemoteNodeName().getIP() + ":" + h.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("forwardToken"));
             h.sendMessage(tokenMessage);
         }
     }
@@ -598,9 +602,7 @@ public class ConnectionManager {
         this.snapshotManager.manageSnapshotToken(tokenName,name);
 
         //notify the rest of the network
-        for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(tokenMessage);
-        }
+        this.forwardToken(tokenMessage);
     }
     // </editor-fold>
 
