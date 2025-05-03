@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Exception;
+package polimi.ds.dsnapshot.Exception.ExportedException;
 
 public class DSConnectionUnavailableException extends DSException {
     public DSConnectionUnavailableException() {

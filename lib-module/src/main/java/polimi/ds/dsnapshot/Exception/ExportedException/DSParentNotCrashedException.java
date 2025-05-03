@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Exception;
+package polimi.ds.dsnapshot.Exception.ExportedException;
 
 public class DSParentNotCrashedException extends DSException {
     public DSParentNotCrashedException() {super("The parent has not crashed, no need to reconnect.");}

@@ -6,18 +6,11 @@ import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
-import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
-import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
-import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
-import polimi.ds.dsnapshot.Exception.DSException;
-import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
+import polimi.ds.dsnapshot.Exception.ExportedException.*;
 import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -71,7 +64,7 @@ public class JavaDistributedSnapshot{
         connectionManager.startNewSnapshot();
     }
 
-    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort) throws SnapshotRestoreRemoteException, SnapshotRestoreLocalException {
+    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort) throws DSSnapshotRestoreRemoteException, DSSnapshotRestoreLocalException {
         SnapshotIdentifier snapshotIdentifier = new SnapshotIdentifier(new NodeName(snapshotIp,snapshotPort),snapshotId);
         connectionManager.startSnapshotRestoreProcedure(snapshotIdentifier);
     }

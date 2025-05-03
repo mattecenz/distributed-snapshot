@@ -2,7 +2,6 @@ package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
 import polimi.ds.dsnapshot.Exception.ExportedException.*;
-import polimi.ds.dsnapshot.Exception.*;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
 import java.util.Scanner;
@@ -176,11 +175,8 @@ public class Main {
 
         try {
             JavaDistributedSnapshot.getInstance().restoreSnapshot(code,ip,port);
-        } catch (SnapshotRestoreRemoteException e) {
-            SystemOutTS.println("The library threw a SnapshotRestoreRemoteException: " + e.getMessage());
-            return;
-        } catch (SnapshotRestoreLocalException e) {
-            SystemOutTS.println("The library threw a SnapshotRestoreLocalException: " + e.getMessage());
+        } catch (DSSnapshotRestoreRemoteException | DSSnapshotRestoreLocalException e) {
+            SystemOutTS.println(e.getMessage());
             return;
         }
 
