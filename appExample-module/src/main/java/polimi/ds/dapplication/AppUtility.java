@@ -13,7 +13,7 @@ public class AppUtility implements ApplicationLayerInterface {
     // TODO: can this warning cause issues ?
     @Override
     public AppState getApplicationState() {
-        SystemOutTS.print("Collecting state of the application. ");
+        SystemOutTS.println("Collecting state of the application...");
         return Main.getAppState();
     }
 
@@ -42,7 +42,7 @@ public class AppUtility implements ApplicationLayerInterface {
 
     @Override
     public void setApplicationState(Serializable appState) {
-        SystemOutTS.println("snapshot state restored!");
+        SystemOutTS.println("Snapshot state restored!");
         Main.getAppState().restoreAppState(appState);
     }
 

@@ -6,12 +6,16 @@ import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Exception.SocketClosedException;
+import polimi.ds.dsnapshot.Exception.SocketCrashedException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -51,11 +55,6 @@ public class ClientSocketHandler implements Runnable{
     private final ConnectionManager manager;
 
     /**
-     * Boolean to check  if the socket output handler is ready
-     */
-    private final AtomicBoolean outAvailable;
-
-    /**
      * Shared variable used for checking if the server is still listening or not
      */
     private final AtomicBoolean inAvailable;
@@ -75,7 +74,6 @@ public class ClientSocketHandler implements Runnable{
     public ClientSocketHandler(Socket socket, NodeName remoteNodeName, ConnectionManager manager, boolean isOwner) {
         this.socket = socket;
         this.remoteNodeName = remoteNodeName;
-        this.outAvailable = new AtomicBoolean(false);
         this.inAvailable = new AtomicBoolean(false);
         this.manager = manager;
         this.outLock = new Object();
@@ -96,7 +94,6 @@ public class ClientSocketHandler implements Runnable{
     public ClientSocketHandler(UnNamedSocketHandler unhandler, NodeName remoteNodeName, ConnectionManager manager){
         this.socket = unhandler.getSocket();
         this.remoteNodeName = remoteNodeName;
-        this.outAvailable = new AtomicBoolean(false);
         // The input stream is retrieved from the socket handler before
         this.inAvailable = new AtomicBoolean(true);
         this.manager = manager;
@@ -104,7 +101,7 @@ public class ClientSocketHandler implements Runnable{
 
         this.outLock = new Object();
 
-        // This is the fundamental difference
+        // This is the fundamental difference between the constructors
         this.in = unhandler.getIn();
         this.setOutStream();
 
@@ -132,7 +129,6 @@ public class ClientSocketHandler implements Runnable{
         try {
             LoggerManager.getInstance().mutableInfo("Creating the output stream...", Optional.of(this.getClass().getName()), Optional.of("setStream"));
             this.out = new ObjectOutputStream(this.socket.getOutputStream());
-            this.outAvailable.set(true);
         }catch (IOException e){
             //TODO: what to do ?
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
@@ -168,74 +164,94 @@ public class ClientSocketHandler implements Runnable{
                 this.in = new ObjectInputStream(this.socket.getInputStream());
                 this.inAvailable.set(true);
             } catch (IOException e) {
-                //TODO: what to do ?
+                // Not much we can do, it is outside our control this error.
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
+                // Use this only as debug.
+                System.err.println("IO exception: "+e.getMessage());
             }
             // Now we are ready to listen incoming messages
 
         }
 
         // Read a generic message and decide what to do
-        while(inAvailable.get()){
+        while(this.inAvailable.get()){
             try {
                 LoggerManager.getInstance().mutableInfo("Listening..", Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("run"));
                 Message m = (Message) this.in.readObject();
                 LoggerManager.getInstance().mutableInfo("Message received: " +m.getClass().getName(), Optional.of(this.getClass().getName()+this.hashCode()), Optional.of("run"));
                 // I guess just pass the message to the ConnectionManager ? A bit ugly but it works.
                 this.manager.receiveMessage(m, this);
-            } catch (IOException e) {
-                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
-                // TODO: what to do ? <- here if not receive msg for 2*pingPongTimeout
+            } catch (EOFException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "The channel has been forcefully closed from the other side.", e);
                 this.inAvailable.set(false);
+                // Initiate crash procedure
+                this.manager.initiateCrashProcedure(this);
+                // The socket will be closed
             }catch (ClassNotFoundException e){
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "ClassNotFoundException", e);
-                // TODO: what to do ?
+                // Not much we can do, outside of our control.
+                // Use this only as debug.
+                System.err.println("IO exception: "+e.getMessage());
                 this.inAvailable.set(false);
             }catch (NullPointerException e){
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "NullPointerException", e);
-                System.out.println(e.getMessage());
+                // Not much we can do, outside of our control.
+                // Use this only as debug.
+                System.err.println("IO exception: "+e.getMessage());
+                this.inAvailable.set(false);
+            } catch (IOException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO Exception", e);
+                // Not much we can do, outside of our control.
+                // Use this only as debug.
+                System.err.println("IO exception: "+e.getMessage());
                 this.inAvailable.set(false);
             }
         }
     }
 
-    public void close() throws IOException {
-        socket.close();
-        LoggerManager.getInstance().mutableInfo("Socket closed!", Optional.of(this.getClass().getName()), Optional.of("close"));
-        this.outAvailable.set(false);
+    public void close() {
+        try {
+            this.socket.close();
+            LoggerManager.getInstance().mutableInfo("Socket closed!", Optional.of(this.getClass().getName()), Optional.of("close"));
+        } catch (IOException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO Exception", e);
+            // Not much we can do, outside of our control.
+            // Use this only as debug.
+            System.err.println("IO exception: "+e.getMessage());
+        }
         this.inAvailable.set(false);
+        try {
+            EventsBroker.removeEventChannel(this.remoteNodeName.getIP()+":"+this.remoteNodeName.getPort());
+        } catch (EventException e) {
+            // Do nothing
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Event exception: ", e);
+        }
     }
-
-    /**
-     * Method to launch the input stream of the handler in a separate thread.
-     */
 
     /**
      * Method invoked when sending a message to the output stream. This method is thread safe.
      * @param m message to be sent
-     * @return true if the message has been sent correctly
+     * @throws SocketClosedException if the socket you are trying to send the message with is closed.
      */
-    public boolean sendMessage(Message m){
+    public void sendMessage(Message m) throws SocketClosedException {
         synchronized (this.outLock) {
             LoggerManager.getInstance().mutableInfo("Lock acquired...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
-            // Here I am double locking but there is no deadlock since the input thread will never lock on the outLock
-            if (!this.outAvailable.get()) {
-                LoggerManager.getInstance().mutableInfo("Not yet ready to send message! Try again...", Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
-                return false;
-            }
 
             try {
                 LoggerManager.getInstance().mutableInfo("Sending message: " + m.getClass().getName() + " to: "+remoteNodeName.getIP() +": " + remoteNodeName.getPort(), Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
                 // Important. synchronize everything in the output stream
                 this.out.writeObject(m);
                 this.out.flush();
+            } catch (SocketException e) {
+                LoggerManager.instanceGetLogger().log(Level.WARNING, "The socket has been abruptly closed. Cannot send messages anymore", e);
+                // Launch the exception
+                throw new SocketClosedException();
             } catch (IOException e) {
                 LoggerManager.instanceGetLogger().log(Level.SEVERE, "IO exception", e);
-                // TODO: what to do ?
-                return false;
+                // Not much we can do, outside of our control.
+                // Use this only as debug.
+                System.err.println("IO exception: "+e.getMessage());
             }
-
-            return true;
         }
     }
 

@@ -1,0 +1,7 @@
+package polimi.ds.dsnapshot.Exception.ExportedException;
+
+public class DSNodeUnreachableException extends DSException {
+    public DSNodeUnreachableException() {
+        super("The node you are trying to reach is unreachable ! ");
+    }
+}
