@@ -31,8 +31,9 @@ We need both the library and the application.
 | Join procedure | :green_circle: | :green_circle:     | 
 | Send msg | :green_circle: | :green_circle:     |
 | Exit procedure | :green_circle: | :green_circle:     |
-| Ping pong | :green_circle: | :red_circle:       |
-| Ping pong fail reaction | :red_circle: | :red_circle:       |
+| Ping pong | :green_circle: | :green_circle:       |
+| Ping pong fail reaction | :green_circle: | :yellow_circle: (manually tested) |
+| Crash detection | :green_circle: | :yellow_circle: (manually tested) |
 | Snapshot procedure | :green_circle: | :green_circle:     |
 | Snapshot procedure reset | :green_circle: | :yellow_circle: (manually tested) |
 
