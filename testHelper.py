@@ -10,7 +10,7 @@ import sys
 import javaobj
 
 verify = True
-print_ns_rt = False
+print_ns_rt = True
 
 task_ready = 0
 jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
@@ -214,10 +214,14 @@ def snapshot_verify_rt(routing_table, task):
                         
                         for i in range(0, len(clean_annotations), 2):
                             destination = clean_annotations[i]
-                            nexthop = clean_annotations[i + 1] if i + 1 < len(clean_annotations) else None
+                            tmp = clean_annotations[i + 1] if i + 1 < len(clean_annotations) else None
+                            if isinstance(tmp, javaobj.JavaObject):
+                                if hasattr(tmp, 'nodeName'):
+                                    nexthop = tmp.nodeName
+                                    nexthops.append(nexthop)
 
                             destinations.append(destination)
-                            nexthops.append(nexthop)
+                            
                         
                         if print_ns_rt: snapshot_print_rt(destinations,nexthops,task)
         except Exception as e:
