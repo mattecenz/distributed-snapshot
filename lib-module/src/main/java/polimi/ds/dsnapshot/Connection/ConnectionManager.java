@@ -778,6 +778,10 @@ public class ConnectionManager {
         }
     }
 
+    public String getAvailableSnapshots(){ // Ideally synchronized would be better but its fine for now
+        return this.snapshotManager.getAllSnapshotsOfNode(this.name);
+    }
+
     public synchronized void startNewSnapshot(){
         //snapshot preparation
         String CHARACTERS = Config.getString("snapshot.codeAdmissibleChars");

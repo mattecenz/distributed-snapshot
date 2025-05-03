@@ -69,6 +69,11 @@ public class JavaDistributedSnapshot{
         connectionManager.startSnapshotRestoreProcedure(snapshotIdentifier);
     }
 
+    public String getAvailableSnapshots(){
+
+        return connectionManager.getAvailableSnapshots();
+    }
+
     @ApiStatus.Internal
     public void ReceiveMessage(CallbackContent callbackContent){
         ThreadPool.submit(() ->{

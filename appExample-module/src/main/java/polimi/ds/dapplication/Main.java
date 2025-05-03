@@ -166,6 +166,9 @@ public class Main {
     }
 
     private static void restoreSnapshot(){
+
+        SystemOutTS.println("Here are all the snapshots saved for this node:");
+        SystemOutTS.println(JavaDistributedSnapshot.getInstance().getAvailableSnapshots());
         SystemOutTS.print("Enter the code of the snapshot to be restored: "); //code -> random string
         String code = scanner.nextLine();
         SystemOutTS.print("Enter the ip saved in the name of the snapshot to be restored: ");
