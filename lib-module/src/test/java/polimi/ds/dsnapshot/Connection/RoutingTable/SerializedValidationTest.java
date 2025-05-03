@@ -78,7 +78,7 @@ public class SerializedValidationTest {
 
         for (int i = 0; i < nodeNum; i++) {
             nodes.add(new NodeName("Node000"+i + testNum,10));
-            handlers.add(new ClientSocketHandler(socket, nodes.get(i), null));
+            handlers.add(new ClientSocketHandler(socket, nodes.get(i), null, false));
             routingTable.addPath(nodes.get(i),handlers.get(i));
         }
     }

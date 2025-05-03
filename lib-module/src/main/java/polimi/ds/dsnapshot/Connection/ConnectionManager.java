@@ -253,7 +253,7 @@ public class ConnectionManager {
     private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws IOException {
         Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
+        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this, true);
         ThreadPool.submit(handler);
         //send join msg to anchor node & wait for ack
 
@@ -401,7 +401,7 @@ public class ConnectionManager {
                 // Open a new socket
                 Socket socket = new Socket(msg.getJoinerName().getIP(),msg.getJoinerName().getPort());
                 // Create the new handler
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, msg.getJoinerName(),this);
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, msg.getJoinerName(),this, true);
                 ThreadPool.submit(joinerHandler);
                 // Add it in the current handler list
                 synchronized (this.handlerList) {

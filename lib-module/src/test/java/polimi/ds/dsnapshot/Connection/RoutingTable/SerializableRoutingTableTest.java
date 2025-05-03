@@ -8,6 +8,7 @@ import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
 import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializableRoutingTable;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.SerializedSocketHandler;
 import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class SerializableRoutingTableTest {
         when(clientSocketHandler.getRemoteNodeName()).thenReturn(nodeName);
         when(socket.getOutputStream()).thenReturn(out);
 
-        clientSocketHandler = new ClientSocketHandler(socket, nodeName, null);
+        clientSocketHandler = new ClientSocketHandler(socket, nodeName, null, false);
     }
 
     @Test
@@ -45,12 +46,12 @@ public class SerializableRoutingTableTest {
 
         SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable)routingTable.toSerialize();
 
-        Dictionary<NodeName, NodeName> routingTableFields = serializableRoutingTable.getOldRoutingTableFields();
+        Dictionary<NodeName, SerializedSocketHandler> routingTableFields = serializableRoutingTable.getOldRoutingTableFields();
 
         var keys = routingTableFields.keys();
         while(keys.hasMoreElements()) {
             NodeName key = (NodeName) keys.nextElement();
-            assert routingTableFields.get(key) == nodeName;
+            assert routingTableFields.get(key).getNodeName() == nodeName;
         }
     }
 

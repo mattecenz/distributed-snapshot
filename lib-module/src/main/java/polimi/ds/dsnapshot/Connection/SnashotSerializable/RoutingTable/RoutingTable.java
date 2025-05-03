@@ -182,7 +182,7 @@ public class RoutingTable implements SnapshotSerializable {
     @Override
     public synchronized boolean serializedValidation(Serializable serializable){
         SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable) serializable;
-        Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
+        Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         if (oldRoutingTableFieldsDict == null && !routingTableFields.isEmpty()) return false;
         else if (oldRoutingTableFieldsDict == null && routingTableFields.isEmpty()) return true;
 
@@ -193,7 +193,7 @@ public class RoutingTable implements SnapshotSerializable {
         Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            NodeName value = oldRoutingTableFieldsDict.get(key);
+            NodeName value = oldRoutingTableFieldsDict.get(key).getNodeName();
             if(key.equals(value)) {
                 if(routingTableFields.get(key) == null || !value.equals(routingTableFields.get(key).getRemoteNodeName())) return false;
             }
@@ -206,7 +206,7 @@ public class RoutingTable implements SnapshotSerializable {
             NodeName value = routingTableFields.get(key).getRemoteNodeName();
 
             if(key.equals(value)) {
-                if (oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key))) return false;
+                if (oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key).getNodeName())) return false;
             }
         }
 
@@ -214,7 +214,7 @@ public class RoutingTable implements SnapshotSerializable {
     }
 
     public synchronized List<ClientSocketHandler> fromSerialize(SerializableRoutingTable serializableRoutingTable, ConnectionManager manager){
-        Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
+        Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         removeNonDirectConnections(oldRoutingTableFieldsDict);
 
         List<ClientSocketHandler> newConnections = new ArrayList<>();
@@ -230,32 +230,33 @@ public class RoutingTable implements SnapshotSerializable {
         return newConnections;
     }
 
-    private synchronized void removeNonDirectConnections(Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict){
+    private synchronized void removeNonDirectConnections(Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict){
         Enumeration<NodeName> keys = routingTableFields.keys();
 
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
             NodeName value = routingTableFields.get(key).getRemoteNodeName();
 
-            if(oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key))){
+            if(oldRoutingTableFieldsDict.get(key) == null || !value.equals(oldRoutingTableFieldsDict.get(key).getNodeName())){
                 routingTableFields.remove(key);
             }
         }
     }
 
-    private synchronized List<ClientSocketHandler> addNewEntries(Dictionary<NodeName, NodeName> oldRoutingTableFieldsDict, ConnectionManager manager) throws IOException {
+    private synchronized List<ClientSocketHandler> addNewEntries(Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict, ConnectionManager manager) throws IOException {
         Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
         List<ClientSocketHandler> newConnections = new ArrayList<>();
 
         //direct connection
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            NodeName value = oldRoutingTableFieldsDict.get(key);
-            if (key.equals(value) && routingTableFields.get(key) == null) {
-                newConnections.add(socketOpen(key, manager));
-            } else if (key.equals(value) && !routingTableFields.get(key).getRemoteNodeName().equals(key)) {
+            SerializedSocketHandler value = oldRoutingTableFieldsDict.get(key);
+            NodeName remoteNodeName = value.getNodeName();
+            if (key.equals(remoteNodeName) && routingTableFields.get(key) == null) {
+                if(value.isOwner())newConnections.add(socketOpen(key, manager));
+            } else if (key.equals(remoteNodeName) && !routingTableFields.get(key).getRemoteNodeName().equals(key)) {
                 routingTableFields.remove(key);
-                newConnections.add(socketOpen(key, manager));
+                if(value.isOwner())newConnections.add(socketOpen(key, manager));
             }
         }
 
@@ -263,7 +264,7 @@ public class RoutingTable implements SnapshotSerializable {
         keys = oldRoutingTableFieldsDict.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            NodeName value = oldRoutingTableFieldsDict.get(key);
+            NodeName value = oldRoutingTableFieldsDict.get(key).getNodeName();
             if(!key.equals(value)  && routingTableFields.get(key) == null) {
                 routingTableFields.put(key,routingTableFields.get(value));
             }
@@ -274,7 +275,7 @@ public class RoutingTable implements SnapshotSerializable {
 
     private ClientSocketHandler socketOpen(NodeName destination, ConnectionManager manager) throws IOException {
         Socket socket = new Socket(destination.getIP(),destination.getPort());
-        ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, destination,manager);
+        ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, destination,manager,true);
         ThreadPool.submit(joinerHandler);
 
         routingTableFields.put(destination, joinerHandler);

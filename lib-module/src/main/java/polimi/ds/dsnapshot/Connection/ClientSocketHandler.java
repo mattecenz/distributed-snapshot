@@ -1,5 +1,6 @@
 package polimi.ds.dsnapshot.Connection;
 
+import org.jetbrains.annotations.TestOnly;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
@@ -42,6 +43,8 @@ public class ClientSocketHandler implements Runnable{
      * Careful, since it is not final it may happen that there is a period that the client remains with no name
      */
     private final NodeName remoteNodeName;
+
+    private final boolean isOwner;
     /**
      * Reference to the original connection manager for callback when a message is received
      */
@@ -67,8 +70,9 @@ public class ClientSocketHandler implements Runnable{
      * @param socket socket to be managed
      * @param remoteNodeName name of the remote node
      * @param manager reference to the connection manager
+     * @param isOwner if the node is the first to open the connection
      */
-    public ClientSocketHandler(Socket socket, NodeName remoteNodeName, ConnectionManager manager) {
+    public ClientSocketHandler(Socket socket, NodeName remoteNodeName, ConnectionManager manager, boolean isOwner) {
         this.socket = socket;
         this.remoteNodeName = remoteNodeName;
         this.outAvailable = new AtomicBoolean(false);
@@ -76,6 +80,7 @@ public class ClientSocketHandler implements Runnable{
         this.manager = manager;
         this.outLock = new Object();
         this.setOutStream();
+        this.isOwner = isOwner;
 
         this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
@@ -95,6 +100,7 @@ public class ClientSocketHandler implements Runnable{
         // The input stream is retrieved from the socket handler before
         this.inAvailable = new AtomicBoolean(true);
         this.manager = manager;
+        this.isOwner = false;
 
         this.outLock = new Object();
 
@@ -105,6 +111,21 @@ public class ClientSocketHandler implements Runnable{
         this.prepareMessageInputEvent(JavaDistributedSnapshot.getInstance());
 
         LoggerManager.getInstance().mutableInfo("Socket connected at address:" + socket.getInetAddress() + ":" + socket.getPort(), Optional.of(this.getClass().getName()), Optional.of("ClientSocketHandler"));
+    }
+
+    /**
+     * Constructor of the handler without the connection manager.
+     * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
+     * @param socket socket to be managed
+     * @param remoteNodeName name of the remote node
+     */
+    @TestOnly
+    public ClientSocketHandler(Socket socket, NodeName remoteNodeName) {
+        this(socket, remoteNodeName, null, false);
+    }
+
+    public boolean isNodeOwner() {
+        return isOwner;
     }
 
     private void setOutStream(){
@@ -119,15 +140,6 @@ public class ClientSocketHandler implements Runnable{
         LoggerManager.getInstance().mutableInfo("Stream ready", Optional.of(this.getClass().getName()), Optional.of("setStream"));
     }
 
-    /**
-     * Constructor of the handler without the connection manager.
-     * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
-     * @param socket socket to be managed
-     * @param remoteNodeName name of the remote node
-     */
-    public ClientSocketHandler(Socket socket, NodeName remoteNodeName) {
-        this(socket, remoteNodeName, null);
-    }
 
 
     private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
