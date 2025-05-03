@@ -4,7 +4,7 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.AdoptionRequestMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Message;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 
 import java.io.IOException;

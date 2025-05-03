@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Connection.RoutingTable;
+package polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable;
 
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
@@ -9,18 +9,18 @@ import java.util.Hashtable;
 
 public class SerializableRoutingTable implements Serializable{
 
-    private Dictionary<NodeName, NodeName> routingTableFields = new Hashtable<>();
+    private Dictionary<NodeName, SerializedSocketHandler> routingTableFields = new Hashtable<>();
 
     SerializableRoutingTable(Dictionary<NodeName, ClientSocketHandler> routingTableFields) {
         var keys = routingTableFields.keys();
         while (keys.hasMoreElements()) {
             NodeName key = keys.nextElement();
-            this.routingTableFields.put(key,routingTableFields.get(key).getRemoteNodeName());
+            ClientSocketHandler value = routingTableFields.get(key);
+            this.routingTableFields.put(key,new SerializedSocketHandler(value.getRemoteNodeName(), value.isNodeOwner()));
         }
     }
 
-    protected Dictionary<NodeName, NodeName> getOldRoutingTableFields() {
+    public Dictionary<NodeName, SerializedSocketHandler> getOldRoutingTableFields() {
         return routingTableFields;
     }
-
 }

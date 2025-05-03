@@ -1,12 +1,19 @@
 package polimi.ds.dsnapshot.Snapshot;
 
+import polimi.ds.dsnapshot.Api.ApplicationLayerInterface;
+import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
 import polimi.ds.dsnapshot.Connection.NodeName;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
+import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Exception.Snapshot.Snapshot2PCException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotRestoreException;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
-import polimi.ds.dsnapshot.Utilities.SerializationUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -27,6 +34,9 @@ public class SnapshotManager {
     private final ConnectionManager connectionManager;
 
     private static final String snapshotPath = Config.getString("snapshot.path");
+    private ApplicationLayerInterface applicationLayerInterface;
+
+    private Map<SnapshotIdentifier,SnapshotState> lastSnapshotState = new Hashtable<>(); //creator port as key
 
     public SnapshotManager(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
@@ -40,9 +50,17 @@ public class SnapshotManager {
                 LoggerManager.getInstance().mutableInfo("created directory" + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("SnapshotManager"));
             }
         }
+
+
     }
 
+    // <editor-fold desc="Snapshot procedure">
     public synchronized boolean manageSnapshotToken(String snapshotCode, NodeName channelName) {
+        if(applicationLayerInterface==null) {
+            JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
+            applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
+        }
+
         Snapshot snapshot = snapshots.get(snapshotCode);
         if (snapshot == null) {
             startNewSnapshot(snapshotCode, channelName);
@@ -66,7 +84,7 @@ public class SnapshotManager {
         List<String> eventNames = EventsBroker.getAllEventChannelNames();
         eventNames.remove(channelName.getIP()+":"+channelName.getPort());
         try {
-            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, this.connectionManager.getName().getPort());
+            Snapshot nSnapshot = new Snapshot(eventNames, snapshotCode, this.connectionManager, this.connectionManager.getName().getPort(),applicationLayerInterface);
             snapshots.put(snapshotCode, nSnapshot);
         } catch (EventException | IOException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to start snapshot " + snapshotCode, e);
@@ -86,25 +104,7 @@ public class SnapshotManager {
         }
         return state;
     }
-    private File getLastSnapshotFile(int hostPort){
-        File snapshotsDir = new File(snapshotPath);
 
-        // List all files in the directory that match the pattern
-        File[] files = snapshotsDir.listFiles((dir, name) ->
-                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
-                name.contains("-" + hostPort + "_")
-        );
-
-        if (files == null || files.length == 0) {
-            return null; // No files found
-        }
-
-        // Sort files based on timestamp in their names
-        File file = Arrays.stream(files)
-                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
-                .orElse(null);
-        return file;
-    }
 
     private SnapshotState parseSnapshotFile(File file) {
         byte[] fileContent;
@@ -131,9 +131,125 @@ public class SnapshotManager {
         LocalDateTime localDateTime = LocalDateTime.parse(timestampStr, formatter);
         return ZonedDateTime.of(localDateTime, ZoneId.systemDefault());
     }
+    // </editor-fold>
+
+    // <editor-fold desc="restore Snapshot procedure">
+    public synchronized void reEnteringNodeValidateSnapshotRequest(SnapshotIdentifier snapshotIdentifier) throws Snapshot2PCException {
+        LoggerManager.getInstance().mutableInfo("starting validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
+        if (!lastSnapshotState.isEmpty()) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated due to the presence of a competing snapshot");
+            throw new Snapshot2PCException("Snapshot can't be validated due to the presence of a competing snapshot");
+        }
+
+        File file = getLastSnapshotFile(snapshotIdentifier, this.connectionManager.getName().getPort());
+        SnapshotState state = null;
+
+        if(file != null){
+            state = parseSnapshotFile(file);
+        }
+
+        //no snapshot file found
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, snapshot file can't be found");
+            throw new Snapshot2PCException("Snapshot can't be validated, snapshot file can't be found");
+        }
+
+        if(!connectionManager.getSpt().serializedValidation(state.getSerializableSpanningTree())) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING, "Snapshot can't be validated, inconsistent spanning tree");
+            throw new Snapshot2PCException("Snapshot can't be validated, inconsistent spanning tree");
+        }
+
+        lastSnapshotState.put(snapshotIdentifier, state);
+        LoggerManager.getInstance().mutableInfo("success in validate snapshot request on re-entering node", Optional.of(this.getClass().getName()), Optional.of("reEnteringNodeValidateSnapshotRequest"));
+
+        //validate spt
+    }
+
+    public synchronized void validateSnapshotRequest(RestoreSnapshotRequest resetSnapshotRequest) throws Snapshot2PCException {
+        reEnteringNodeValidateSnapshotRequest(resetSnapshotRequest.getSnapshotIdentifier());
+    }
+
+    public synchronized void removeSnapshotRequest(SnapshotIdentifier snapshotIdentifier) {
+        LoggerManager.getInstance().mutableInfo("abort restore procedure by clearing snapshot last state", Optional.of(this.getClass().getName()), Optional.of("removeSnapshotRequest"));
+        lastSnapshotState.remove(snapshotIdentifier);
+    }
+
+    public synchronized List<ClientSocketHandler> restoreSnapshotRoutingTable(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreException {
+        SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
+            throw new SnapshotRestoreException("try to restore a snapshot without agreement");
+        }
+
+        return connectionManager.getRoutingTable().fromSerialize(state.getRoutingTable(), connectionManager);
+    }
+
+    public synchronized void restoreSnapshot(SnapshotIdentifier snapshotIdentifier) throws EventException, SnapshotRestoreException {
+        LoggerManager.getInstance().mutableInfo("starting restore the snapshot after 2pc agreement", Optional.of(this.getClass().getName()), Optional.of("restoreSnapshot"));
+        SnapshotState state = lastSnapshotState.get(snapshotIdentifier);
+        if(state == null) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "try to restore a snapshot without agreement");
+            throw new SnapshotRestoreException("try to restore a snapshot without agreement");
+        }
+        lastSnapshotState.remove(snapshotIdentifier);
+
+        if(applicationLayerInterface==null) applicationLayerInterface = JavaDistributedSnapshot.getInstance().getApplicationLayerInterface();
+        applicationLayerInterface.setApplicationState(state.getApplicationState());
+        LoggerManager.getInstance().mutableInfo("application state restored.", Optional.of(this.getClass().getName()), Optional.of("restoreSnapshot"));
+
+        Map<String, Event> events = new HashMap<>();
+        for(CallbackContentWithName callbackContent : state.getMessageInputStack()){
+            Event event = null;
+            if(events.containsKey(callbackContent.getEventName())) event = events.get(callbackContent.getEventName());
+            else {
+                event = EventsBroker.getEventChannel(callbackContent.getEventName());
+                events.put(callbackContent.getEventName(), event);
+            }
+            event.publish(callbackContent.getCallBackMessage());
+        }
+    }
+
+    // </editor-fold>
 
 
+    private File getLastSnapshotFile(SnapshotIdentifier snapshotIdentifier, int hostPort){
+        File snapshotsDir = new File(snapshotPath);
 
+        // List all files in the directory that match the pattern
+        File[] files = snapshotsDir.listFiles((dir, name) ->
+                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
+                        name.contains(snapshotIdentifier.getSnapshotId() + "-" + snapshotIdentifier.getSnapshotCreatorName().getIP() + "-" + snapshotIdentifier.getSnapshotCreatorName().getPort()+"-" + hostPort + "_")
+        );
 
+        if (files == null || files.length == 0) {
+            return null; // No files found
+        }
+
+        // Sort files based on timestamp in their names
+        File file = Arrays.stream(files)
+                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
+                .orElse(null);
+        return file;
+    }
+
+    private File getLastSnapshotFile(int hostPort){
+        File snapshotsDir = new File(snapshotPath);
+
+        // List all files in the directory that match the pattern
+        File[] files = snapshotsDir.listFiles((dir, name) ->
+                name.matches(".*_\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}\\.bin") &&
+                        name.contains("-" + hostPort + "_")
+        );
+
+        if (files == null || files.length == 0) {
+            return null; // No files found
+        }
+
+        // Sort files based on timestamp in their names
+        File file = Arrays.stream(files)
+                .max(Comparator.comparing(SnapshotManager::extractTimestampFromFilename))
+                .orElse(null);
+        return file;
+    }
 
 }

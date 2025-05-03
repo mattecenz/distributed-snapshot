@@ -10,7 +10,7 @@ import sys
 import javaobj
 
 verify = True
-print_ns_rt = False
+print_ns_rt = True
 
 task_ready = 0
 jar_comand = "java -jar appExample-module/target/dapplication-1.0-SNAPSHOT-jar-with-dependencies.jar"
@@ -23,7 +23,7 @@ snapshot_path = "./snapshots/"
 snapshot_creators = []
 
 class Task:
-    def __init__(self, input_data, port, expected_output, sync_points=None, expected_final_father = '0', expected_final_rt_entries = []):
+    def __init__(self, input_data, port, expected_output, sync_points=None, expected_final_father = '0', expected_final_rt_entries = [], expected_children=[]):
         self.input = input_data
         self.port = port
         self.expected_output = expected_output
@@ -32,6 +32,7 @@ class Task:
         self.receivedSnapshotCount = 0
         self.expected_final_father = expected_final_father
         self.expected_final_rt_entries = expected_final_rt_entries
+        self.expected_children = expected_children
 
     @staticmethod
     def from_dict(data, local_ip):
@@ -44,7 +45,8 @@ class Task:
             expected_output=expected_output,
             sync_points=data.get('sync_points', []),
             expected_final_father=data.get('expected_final_father', '0'),
-            expected_final_rt_entries=data.get('expected_final_rt_entries', [])
+            expected_final_rt_entries=data.get('expected_final_rt_entries', []),
+            expected_children=data.get('expected_children', [])
         )
 
     def receiveNewSnapshot(self):
@@ -126,11 +128,11 @@ def read_snapshot(file_path, task):
         # Verifica se l'oggetto è di tipo 'JavaObject' o qualcosa di diverso
         if isinstance(obj, javaobj.JavaObject):
             try:
-                if hasattr(obj, 'anchorNode'):
-                    anchor_node = obj.anchorNode
-                    if not snapshot_verify_anchor(anchor_node,task): return False
+                if hasattr(obj, 'serializableSpanningTree'):
+                    serializable_spanning_tree = obj.serializableSpanningTree
+                    if not pars_spt(serializable_spanning_tree,task): return False
                 else: 
-                    print('no anchor node saved in the snapshot')
+                    print('no spanning tree saved in the snapshot')
                     return False
                 if hasattr(obj, 'routingTable'):
                     routing_table = obj.routingTable
@@ -146,8 +148,6 @@ def read_snapshot(file_path, task):
                     print('no application state or message input stack present in the snapshot')
                     return False
             
-
-
             except Exception as e:
                 print(f"Error while parsing java obj: {e}")
                 return False
@@ -194,7 +194,6 @@ def parse_message_input_stack(message_input_stack, task):
     else:
         print(f"The message_input_stack of {task.port} isn't a 'JavaObject'.")  
 
-
 def snapshot_verify_rt(routing_table, task):
     destinations = []
     nexthops = []
@@ -215,10 +214,14 @@ def snapshot_verify_rt(routing_table, task):
                         
                         for i in range(0, len(clean_annotations), 2):
                             destination = clean_annotations[i]
-                            nexthop = clean_annotations[i + 1] if i + 1 < len(clean_annotations) else None
+                            tmp = clean_annotations[i + 1] if i + 1 < len(clean_annotations) else None
+                            if isinstance(tmp, javaobj.JavaObject):
+                                if hasattr(tmp, 'nodeName'):
+                                    nexthop = tmp.nodeName
+                                    nexthops.append(nexthop)
 
                             destinations.append(destination)
-                            nexthops.append(nexthop)
+                            
                         
                         if print_ns_rt: snapshot_print_rt(destinations,nexthops,task)
         except Exception as e:
@@ -263,7 +266,61 @@ def nodeName_pars(node_name):
         except Exception as e:
             print(f"Error while parsing java obj: {e}")
     return False,None,None
-                   
+
+def pars_spt(spt,task):
+    if isinstance(spt, javaobj.JavaObject):
+        try:
+            if hasattr(spt, 'anchorNodeName'):
+                anchor_node = spt.anchorNodeName
+                if not snapshot_verify_anchor(anchor_node,task): return False
+            else: 
+                print('no anchor node saved in the snapshot')
+                return False
+            if hasattr(spt, 'childrenNames'):
+                children_names = spt.childrenNames
+                if not snapshot_verify_children(children_names,task): return False
+            else: 
+                print('no childrenNames saved in the snapshot')
+                return False
+        except Exception as e:
+            print(f"Error while parsing java obj: {e}")
+            return False
+    else:
+        print("the spt isn't a 'JavaObject'.")
+        return False
+    return True
+
+def snapshot_verify_children(children_names, task):
+    if isinstance(children_names, javaobj.JavaObject):
+        try:
+            # Un ArrayList serializzato ha 'annotations' come lista dei suoi elementi
+            if hasattr(children_names, 'annotations'):
+                elements = children_names.annotations
+                for element in elements:
+                    if isinstance(element, javaobj.JavaObject): 
+                        b,ip,port = nodeName_pars(element)
+                        if not b: 
+                            print(f"the element is not a valid node name {element}")
+                            return False
+                        if not port in task.expected_children:
+                            print(f"unexpected child {port} for node {task.port}")
+                            return False
+                        else:
+                            task.expected_children.remove(port)
+                if not len(task.expected_children) == 0:
+                    print(f"missing children for node {task.port} {task.expected_children}")
+            else:
+                print(f"No 'annotations' field found in children_names of {task.port}")
+                return False
+        except Exception as e:
+            print(f"Error parsing children_names for {task.port}: {e}")
+            return False
+    else:
+        print(f"children_names of {task.port} is not a JavaObject.")
+        return False
+    return True
+
+
 def snapshot_verify_anchor(anchor_node, task):
     if(task.expected_final_father==0): return True
 

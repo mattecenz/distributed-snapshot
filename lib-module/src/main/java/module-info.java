@@ -4,4 +4,5 @@ module javaDistributedSnapshot.module {
     requires java.logging;
 
     exports polimi.ds.dsnapshot.Api;
+    exports polimi.ds.dsnapshot.Exception.ExportedException;
 }

@@ -7,7 +7,14 @@ import polimi.ds.dsnapshot.Connection.Messages.Exit.ExitNotify;
 import polimi.ds.dsnapshot.Connection.Messages.Join.DirectConnectionMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinForwardMsg;
 import polimi.ds.dsnapshot.Connection.Messages.Join.JoinMsg;
-import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequest;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotRequestAgreementResult;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.RestoreSnapshotResponse;
+import polimi.ds.dsnapshot.Connection.Messages.Snapshot.TokenMessage;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.SPT.SpanningTree;
+import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
+import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.*;
 
 import java.io.IOException;
@@ -27,7 +34,18 @@ import java.util.stream.Collectors;
 
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeChildAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.SPT.SpanningTreeNoAnchorNodeException;
+import polimi.ds.dsnapshot.Exception.Snapshot.Snapshot2PCException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotPendingRequestManagerException;
+import polimi.ds.dsnapshot.Exception.Snapshot.SnapshotRestoreException;
+import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Snapshot.SnapshotManager;
+import polimi.ds.dsnapshot.Snapshot.SnapshotPendingRequestManager;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
@@ -52,7 +70,8 @@ public class ConnectionManager {
      */
     private final RoutingTable routingTable = new RoutingTable();
     private final SpanningTree spt = new SpanningTree();
-    private final SnapshotManager snapshotManager = new SnapshotManager(this);//todo: implement pars Token
+    private final SnapshotManager snapshotManager = new SnapshotManager(this);
+    private SnapshotPendingRequestManager snapshotPendingRequestManager = null;
     /**
      * Reference to the handler of the acks
      */
@@ -62,6 +81,7 @@ public class ConnectionManager {
      * For the moment we can assume it is immutable
      */
     private final NodeName name;
+    private Event toForwardEvent;
 
     double directConnectionProbability = Config.getDouble("network.directConnectionProbability");
 
@@ -84,6 +104,19 @@ public class ConnectionManager {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Host not connected to network, cannot do anything:", e);
         }
         this.name = new NodeName(thisIP, port);
+        try {
+            toForwardEvent = EventsBroker.createEventChannel("toForward");
+        } catch (EventException e) {
+            LoggerManager.getInstance().mutableInfo("to forward event already exist", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
+            try {
+                toForwardEvent = EventsBroker.getEventChannel("toForward");
+            } catch (EventException ex) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE, "Failed to get event channel", ex);
+                return;
+                //TODO: decide
+            }
+        }
+        toForwardEvent.subscribe(this::forwardMessage);
 
         LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+thisIP+":"+port , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
@@ -220,7 +253,7 @@ public class ConnectionManager {
     private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws IOException {
         Socket socket = new Socket(anchorName.getIP(),anchorName.getPort());
         //create socket for the anchor node, add to direct connection list and save as anchor node
-        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this);
+        ClientSocketHandler handler = new ClientSocketHandler(socket, anchorName,this, true);
         ThreadPool.submit(handler);
         //send join msg to anchor node & wait for ack
 
@@ -335,6 +368,9 @@ public class ConnectionManager {
             synchronized (this.unNamedHandlerList){
                 this.unNamedHandlerList.remove(unnamedHandler);
             }
+            synchronized (this.handlerList) {
+                this.handlerList.add(handler);
+            }
             // Add a new routing table entry
             this.addNewRoutingTableEntry(handler.getRemoteNodeName(), handler);
             // Since it is not a direct connection it does not need to be added to the spt
@@ -365,7 +401,7 @@ public class ConnectionManager {
                 // Open a new socket
                 Socket socket = new Socket(msg.getJoinerName().getIP(),msg.getJoinerName().getPort());
                 // Create the new handler
-                ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, msg.getJoinerName(),this);
+                ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, msg.getJoinerName(),this, true);
                 ThreadPool.submit(joinerHandler);
                 // Add it in the current handler list
                 synchronized (this.handlerList) {
@@ -547,6 +583,7 @@ public class ConnectionManager {
     // <editor-fold desc="Snapshot procedure">
     private void forwardToken(TokenMessage tokenMessage){
         for(ClientSocketHandler h : this.handlerList){
+            LoggerManager.getInstance().mutableInfo("forwarding token to: "+ h.getRemoteNodeName().getIP() + ":" + h.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("forwardToken"));
             h.sendMessage(tokenMessage);
         }
     }
@@ -565,10 +602,225 @@ public class ConnectionManager {
         this.snapshotManager.manageSnapshotToken(tokenName,name);
 
         //notify the rest of the network
-        for(ClientSocketHandler h : this.handlerList){
-            h.sendMessage(tokenMessage);
+        this.forwardToken(tokenMessage);
+    }
+    // </editor-fold>
+
+    // <editor-fold desc="restore Snapshot procedure">
+    public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws SnapshotRestoreLocalException, SnapshotRestoreRemoteException {
+        LoggerManager.getInstance().mutableInfo("starting snapshot restore procedure (2PC)", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
+        try{
+            snapshotManager.reEnteringNodeValidateSnapshotRequest(snapshotIdentifier);
+        } catch (Snapshot2PCException e){
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot! " + e.getMessage());
+        }
+
+        synchronized (this){
+            LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
+            snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.empty(), snapshotIdentifier);
+            this.fillPendingRequests(Optional.empty());
+            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.empty());
+        }
+
+
+        //wait for response
+        Object lock = snapshotPendingRequestManager.getSnapshotLock();
+        try {
+            synchronized(lock){
+                lock.wait(Config.getInt("snapshot.snapshotRestore2PCTimeout"));
+
+                if(!snapshotPendingRequestManager.isEmpty(snapshotIdentifier)){
+                    LoggerManager.instanceGetLogger().log(Level.WARNING,"snapshot procedure fail due to timeout expiration");
+                    throw new SnapshotRestoreRemoteException("is not possible to restore the snapshot!");
+                }
+
+
+            }
+            synchronized (this) {
+                LoggerManager.getInstance().mutableInfo("reset snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
+                snapshotPendingRequestManager = null;
+            }
+        } catch (InterruptedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
+            //TODO: decide
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            throw new SnapshotRestoreLocalException("is not possible to restore the snapshot!");
+            //TODO: decide
         }
     }
+
+    private void fillPendingRequests(Optional<NodeName> sender){
+        try {
+            NodeName anchorNodeName = spt.getAnchorNodeHandler().getRemoteNodeName();
+            if(sender.isEmpty() || !anchorNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(anchorNodeName);
+        } catch (SpanningTreeNoAnchorNodeException e) {
+            LoggerManager.getInstance().mutableInfo("starting snapshot from a node without anchor", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
+            //TODO: decide
+        }
+
+        for(ClientSocketHandler h : spt.getChildren()){
+            NodeName childNodeName = h.getRemoteNodeName();
+            if(sender.isEmpty() || !childNodeName.equals(sender.get()))snapshotPendingRequestManager.addPendingRequest(childNodeName);
+        }
+        LoggerManager.getInstance().mutableInfo("the node is waiting for " + snapshotPendingRequestManager.pendingRequestCount() + " pending request before restoring the snapshot", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
+    }
+
+    private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
+        LoggerManager.getInstance().mutableInfo("the node has received a restore request", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
+        try {
+            snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
+        } catch (Snapshot2PCException e){
+            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, false));
+            return;
+        }
+
+        if(this.spt.isNodeLeaf()) {
+            sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, true));
+            return;
+        }
+
+        SnapshotIdentifier snapshotIdentifier = restoreSnapshotRequest.getSnapshotIdentifier();
+        synchronized (this){
+            LoggerManager.getInstance().mutableInfo("set snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
+            snapshotPendingRequestManager =  new SnapshotPendingRequestManager(Optional.ofNullable(sender), snapshotIdentifier);
+            this.fillPendingRequests(Optional.ofNullable(sender.getRemoteNodeName()));
+
+            forwardMessageAlongSPT(restoreSnapshotRequest, Optional.ofNullable(sender));
+        }
+
+        //wait for response
+        Object lock = snapshotPendingRequestManager.getSnapshotLock();
+        try {
+            synchronized(lock){
+                lock.wait(Config.getInt("snapshot.snapshotRestore2PCTimeout"));
+
+                if(!snapshotPendingRequestManager.isEmpty(snapshotIdentifier)){
+                    LoggerManager.instanceGetLogger().log(Level.WARNING,"snapshot procedure fail due to timeout expiration");
+                    sender.sendMessage(new RestoreSnapshotResponse(restoreSnapshotRequest, false));
+                }
+            }
+            synchronized (this) {
+                LoggerManager.getInstance().mutableInfo("reset snapshotPendingRequestManager", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
+                snapshotPendingRequestManager = null;
+            }
+        } catch (InterruptedException e) {
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
+    }
+
+    private synchronized void receiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler){
+        LoggerManager.getInstance().mutableInfo("the node has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreResponse"));
+        if(snapshotPendingRequestManager == null) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"No snapshotPendingRequestManager, skipping.");
+            return;
+        }
+        try {
+            if(snapshotPendingRequestManager.isNodeSnapshotLeader(restoreSnapshotResponse.getSnapshotIdentifier())){
+                this.leaderReceiveSnapshotRestoreResponse(restoreSnapshotResponse,handler);
+                return;
+            }
+
+            if(!restoreSnapshotResponse.isSnapshotValid()){
+                LoggerManager.getInstance().mutableInfo("send back negative response", Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
+                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
+
+                Object lock = snapshotPendingRequestManager.getSnapshotLock();
+                synchronized(lock){
+                    lock.notifyAll();
+                }
+                return;
+            }
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
+                //all pending request has been received
+                //or receive an invalid response => I can forward to the leader without waiting for other requests
+                LoggerManager.getInstance().mutableInfo("the last pending request has been response, send back result", Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
+                snapshotPendingRequestManager.getSnapshotRequestSender(restoreSnapshotResponse.getSnapshotIdentifier()).sendMessage(restoreSnapshotResponse);
+            }
+
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
+    }
+
+    private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
+        LoggerManager.getInstance().mutableInfo("the snapshot leader has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
+        try {
+            RestoreSnapshotRequestAgreementResult result = new RestoreSnapshotRequestAgreementResult(restoreSnapshotResponse);
+
+            if (!restoreSnapshotResponse.isSnapshotValid()){
+
+                forwardMessageAlongSPT(result, Optional.empty());
+
+                Object lock = snapshotPendingRequestManager.getSnapshotLock();
+                synchronized(lock){
+                    lock.notifyAll();
+                }
+                tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+                return;
+            }
+
+            if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
+                forwardMessageAlongSPT(result, Optional.empty());
+                tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+            }
+
+        } catch (SnapshotPendingRequestManagerException e) {
+            LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            //TODO: decide
+        }
+
+    }
+
+    private synchronized void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
+        forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
+        tryToRestoreSnapshot(agreementResult.getSnapshotIdentifier(), agreementResult.getAgreementResult());
+
+        //todo: we need to notify? (in case of negative response)
+    }
+
+    private synchronized void tryToRestoreSnapshot(SnapshotIdentifier snapshotIdentifier, boolean result){
+        LoggerManager.getInstance().mutableInfo("try to restore the snapshot after 2PC", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+        if(result) {
+            LoggerManager.getInstance().mutableInfo("restoring...", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            try {
+                //restore network
+                List<ClientSocketHandler> newConnections = snapshotManager.restoreSnapshotRoutingTable(snapshotIdentifier);
+                for(ClientSocketHandler clientSocketHandler : newConnections){
+                    clientSocketHandler.sendMessage(new DirectConnectionMsg(this.name));
+                }
+                //add to handlerList
+                synchronized (this.handlerList) {
+                    this.handlerList.addAll(newConnections);
+                }
+                LoggerManager.getInstance().mutableInfo("routing table restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+                //restore app
+                snapshotManager.restoreSnapshot(snapshotIdentifier);
+            } catch (EventException e) {
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
+                return;
+                //todo decide
+            }catch (SnapshotRestoreException e){
+                LoggerManager.instanceGetLogger().log(Level.SEVERE,"restoreSnapshot failed",e);
+                return;
+                //todo decide
+            }
+            LoggerManager.getInstance().mutableInfo("app state restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            LoggerManager.getInstance().mutableInfo("messages restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            LoggerManager.getInstance().mutableInfo("snapshot completely restored!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+        }
+        else{
+            LoggerManager.getInstance().mutableInfo("negative response cannot restore the snapshot, abort procedure!", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
+            snapshotManager.removeSnapshotRequest(snapshotIdentifier);
+        }
+    }
+
     // </editor-fold>
 
     /**
@@ -628,6 +880,10 @@ public class ConnectionManager {
                 LoggerManager.instanceGetLogger().log(Level.WARNING, "Node not reachable, careful", e);
             }
         }
+    }
+    private void forwardMessage(CallbackContent content){
+        ApplicationMessage appMessage = (ApplicationMessage) content.getCallBackMessage();
+        ThreadPool.submit(()->{this.forwardMessage(appMessage, appMessage.getReceiver());});
     }
 
     /**
@@ -745,7 +1001,8 @@ public class ConnectionManager {
                     Event messageInputChannel = handler.getMessageInputChannel();
                     messageInputChannel.publish(m);
                 }else{
-                    this.forwardMessage(m,app.getReceiver());
+                    toForwardEvent.publish(app);
+                    //this.forwardMessage(m,app.getReceiver());
                 }
             }
             case MESSAGE_DISCOVERY -> {
@@ -785,6 +1042,7 @@ public class ConnectionManager {
             }
             case MESSAGE_DISCOVERYREPLY -> {
                 MessageDiscoveryReply msgdr = (MessageDiscoveryReply) m;
+                LoggerManager.getInstance().mutableInfo("received discovery reply about "+ msgdr.getOriginName().getIP() +":"+ msgdr.getOriginName().getPort() +" from " + handler.getRemoteNodeName().getPort() + ":"+ handler.getRemoteNodeName().getIP(), Optional.of(this.getClass().getName()), Optional.of("receiveMessage"));
 
                 // Save information in routing table
                 try {
@@ -814,6 +1072,18 @@ public class ConnectionManager {
 
                     this.forwardMessageAlongSPT(msgdr, Optional.of(handler));
                 }
+            }
+            case SNAPSHOT_RESET_REQUEST -> {
+                RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
+                ThreadPool.submit(()->{this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);});
+            }
+            case SNAPSHOT_RESET_RESPONSE ->{
+                RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
+                this.receiveSnapshotRestoreResponse(restoreSnapshotResponse, handler);
+            }
+            case SNAPSHOT_RESET_AGREEMENT -> {
+                RestoreSnapshotRequestAgreementResult result = (RestoreSnapshotRequestAgreementResult) m;
+                this.receiveAgreementResult(result, handler);
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));

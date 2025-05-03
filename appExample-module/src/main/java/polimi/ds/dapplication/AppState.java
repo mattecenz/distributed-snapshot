@@ -18,4 +18,10 @@ public class AppState implements Serializable {
     public List<String> getMessageHistory(){
         return this.messageHistory;
     }
+
+    public void restoreAppState(Serializable state){
+        AppState appState = (AppState) state;
+        this.messageHistory.clear();
+        this.messageHistory.addAll(appState.getMessageHistory());
+    }
 }

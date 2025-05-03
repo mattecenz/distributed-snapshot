@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Exception;
+package polimi.ds.dsnapshot.Exception.RoutingTable;
 
 public class RoutingTableNodeNotPresentException extends Exception {
     public RoutingTableNodeNotPresentException() {

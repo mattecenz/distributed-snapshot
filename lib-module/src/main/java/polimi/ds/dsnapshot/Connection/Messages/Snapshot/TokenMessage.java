@@ -1,5 +1,7 @@
-package polimi.ds.dsnapshot.Connection.Messages;
+package polimi.ds.dsnapshot.Connection.Messages.Snapshot;
 
+import polimi.ds.dsnapshot.Connection.Messages.Message;
+import polimi.ds.dsnapshot.Connection.Messages.MessageID;
 import polimi.ds.dsnapshot.Connection.NodeName;
 
 public class TokenMessage extends Message {
