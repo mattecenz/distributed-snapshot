@@ -1,5 +1,6 @@
 package polimi.ds.dsnapshot.Api;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.TestOnly;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
@@ -9,6 +10,10 @@ import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
 import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
 import polimi.ds.dsnapshot.Exception.DSPortAlreadyInUseException;
 import polimi.ds.dsnapshot.Exception.DSException;
+import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
+import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
+import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
@@ -18,10 +23,8 @@ import java.util.Optional;
 
 public class JavaDistributedSnapshot{
     private static JavaDistributedSnapshot instance;
-
     private static ConnectionManager connectionManager;
     private static ApplicationLayerInterface applicationLayerInterface;
-
 
     private JavaDistributedSnapshot() {}
 
@@ -49,26 +52,9 @@ public class JavaDistributedSnapshot{
         connectionManager.joinNetwork(anchorNodeName);
     }
 
-    @TestOnly
-    public void setConnectionManager(ConnectionManager connectionManager) {
-        JavaDistributedSnapshot.connectionManager = connectionManager;
-    }
-    @TestOnly
-    public void setApplicationLayerInterface(ApplicationLayerInterface applicationLayerInterface) {
-        JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
-    }
-
     public void leaveNetwork() throws DSException{
         applicationLayerInterface = null;
         connectionManager.exitNetwork();
-    }
-
-    public void applicationExitNotify(NodeName nodeName){
-        applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
-    }
-
-    public void reconnect() throws DSException {
-        connectionManager.reconnectToAnchor();
     }
 
     public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSException {
@@ -77,6 +63,20 @@ public class JavaDistributedSnapshot{
         connectionManager.sendMessage(messageContent, destinationNodeName);
     }
 
+    public void reconnect() throws DSException {
+        connectionManager.reconnectToAnchor();
+    }
+
+    public void startNewSnapshot(){
+        connectionManager.startNewSnapshot();
+    }
+
+    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort) throws SnapshotRestoreRemoteException, SnapshotRestoreLocalException {
+        SnapshotIdentifier snapshotIdentifier = new SnapshotIdentifier(new NodeName(snapshotIp,snapshotPort),snapshotId);
+        connectionManager.startSnapshotRestoreProcedure(snapshotIdentifier);
+    }
+
+    @ApiStatus.Internal
     public void ReceiveMessage(CallbackContent callbackContent){
         ThreadPool.submit(() ->{
             LoggerManager.getInstance().mutableInfo("forward msg to app", Optional.of(this.getClass().getName()), Optional.of("ReceiveMessage"));
@@ -84,13 +84,20 @@ public class JavaDistributedSnapshot{
             applicationLayerInterface.receiveMessage(messageContent);
         });
     }
-
+    @ApiStatus.Internal
     public ApplicationLayerInterface getApplicationLayerInterface(){
         return applicationLayerInterface;
     }
-
-    public void startNewSnapshot(){
-        connectionManager.startNewSnapshot();
+    @ApiStatus.Internal
+    public void applicationExitNotify(NodeName nodeName){
+        applicationLayerInterface.exitNotify(nodeName.getIP(), nodeName.getPort());
     }
-    // public void sendMessage()
+    @TestOnly
+    public void setConnectionManager(ConnectionManager connectionManager) {
+        JavaDistributedSnapshot.connectionManager = connectionManager;
+    }
+    @TestOnly
+    public void setApplicationLayerInterface(ApplicationLayerInterface applicationLayerInterface) {
+        JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
+    }
 }

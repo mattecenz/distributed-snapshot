@@ -1,15 +1,12 @@
 package polimi.ds.dsnapshot.Snapshot;
 
 import polimi.ds.dsnapshot.Api.ApplicationLayerInterface;
-import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.Event;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.EventException;
-import polimi.ds.dsnapshot.Exception.SpanningTreeNoAnchorNodeException;
-import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
@@ -37,7 +34,7 @@ public class Snapshot {
 
     private final List<Event> inputChannels = new ArrayList<>();
 
-    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager, int hostPort) throws EventException, IOException {
+    public Snapshot(List<String> eventNames, String snapshotCode, ConnectionManager connectionManager, int hostPort,ApplicationLayerInterface applicationLayerInterface) throws EventException, IOException {
         // Get the current time as a ZonedDateTime
         ZonedDateTime now = ZonedDateTime.now();
 
@@ -48,33 +45,27 @@ public class Snapshot {
         this.snapshotPath += snapshotCode + "-" + hostPort + "_" + timestampStr + ".bin";
         LoggerManager.getInstance().mutableInfo("starting snapshot with name " + snapshotPath, Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
-        JavaDistributedSnapshot javaDistributedSnapshot = JavaDistributedSnapshot.getInstance();
-        ApplicationLayerInterface applicationLayerInterface = javaDistributedSnapshot.getApplicationLayerInterface();
         Serializable applicationState = applicationLayerInterface.getApplicationState();
 
-        ClientSocketHandler anchorNodeHandler;
-        try {
-            anchorNodeHandler = connectionManager.getSpt().getAnchorNodeHandler();
-            // TODO: look into this further. Again what happens if node is first of the network?
-            this.snapshotState = new SnapshotState(anchorNodeHandler.getRemoteNodeName(),connectionManager.getRoutingTable(),applicationState);
-        } catch (SpanningTreeNoAnchorNodeException e) {
-            // TODO: decide, just set it to null? I Guess use optionals then
-            LoggerManager.instanceGetLogger().log(Level.WARNING, "Anchor node hanlder is missing", e);
-            this.snapshotState = new SnapshotState(connectionManager.getRoutingTable(),applicationState);
-        }
+        LoggerManager.getInstance().mutableInfo("get application state", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
 
-        //ThreadPool.submit(() -> saveApplicationState(anchorNode, connectionManager.getRoutingTable(), applicationState));
+        this.snapshotState = new SnapshotState(connectionManager.getSpt(),connectionManager.getRoutingTable(),applicationState);
 
-        if(eventNames.isEmpty()) {
+        LoggerManager.getInstance().mutableInfo("snapshot state created", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
+
+        if(eventNames.size() <= 1) {
             ThreadPool.submit(this::endSnapshot);
+            LoggerManager.getInstance().mutableInfo("snapshot started Correctly & end", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
             return;
         }
 
         for (String eventName : eventNames) {
+            LoggerManager.getInstance().mutableInfo("snapshot subscribe to: " + eventName, Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
             Event event = EventsBroker.getEventChannel(eventName);
             inputChannels.add(event);
             event.subscribe(pushMessageReference);
         }
+        LoggerManager.getInstance().mutableInfo("snapshot started Correctly", Optional.of(this.getClass().getName()), Optional.of("Snapshot"));
     }
 
     public void pushMessage(CallbackContent callbackContent) {
@@ -89,7 +80,7 @@ public class Snapshot {
         inputChannels.remove(event);
         event.unsubscribe(pushMessageReference);
 
-        if(!inputChannels.isEmpty()) return;
+        if(inputChannels.size() >1) return;
 
         ThreadPool.submit(this::endSnapshot);
     }

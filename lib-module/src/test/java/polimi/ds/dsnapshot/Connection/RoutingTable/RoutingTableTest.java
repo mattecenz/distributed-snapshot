@@ -6,8 +6,9 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.NodeName;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeAlreadyPresentException;
-import polimi.ds.dsnapshot.Exception.RoutingTableNodeNotPresentException;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeAlreadyPresentException;
+import polimi.ds.dsnapshot.Exception.RoutingTable.RoutingTableNodeNotPresentException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -41,7 +42,7 @@ public class RoutingTableTest {
     @Test
     void testAddPathSuccessfully() throws RoutingTableNodeAlreadyPresentException, RoutingTableNodeNotPresentException {
         NodeName node1 = new NodeName("Node1",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         routingTable.addPath(node1, socketHandler);
 
@@ -55,7 +56,7 @@ public class RoutingTableTest {
     @Test
     void testAddPathThrowsExceptionForDuplicateNode() {
         NodeName node1 = new NodeName("Node2",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         assertDoesNotThrow(() -> routingTable.addPath(node1, socketHandler));
 
@@ -67,7 +68,7 @@ public class RoutingTableTest {
     @Test
     void testUpdatePathThrowsExceptionForNonExistentNode() {
         NodeName node1 = new NodeName("Node4",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         assertThrows(RoutingTableNodeNotPresentException.class, () -> {
             routingTable.updatePath(node1, socketHandler);
@@ -78,7 +79,7 @@ public class RoutingTableTest {
     void testClearRoutingTable() throws RoutingTableNodeAlreadyPresentException {
         NodeName node1 = new NodeName("Node5",10);
         NodeName node2 = new NodeName("Node6",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         routingTable.addPath(node1, socketHandler);
         routingTable.addPath(node2, socketHandler);
@@ -91,7 +92,7 @@ public class RoutingTableTest {
     @Test
     void testGetPathSuccessfully() throws RoutingTableNodeAlreadyPresentException, RoutingTableNodeNotPresentException {
         NodeName node1 = new NodeName("Node7",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         routingTable.addPath(node1, socketHandler);
 
@@ -106,7 +107,7 @@ public class RoutingTableTest {
     @Test
     void testGetPathThrowsExceptionForNonExistentNode() {
         NodeName node1 = new NodeName("Node8",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         assertThrows(RoutingTableNodeNotPresentException.class, () -> {
             routingTable.getNextHop(node1);
@@ -117,7 +118,7 @@ public class RoutingTableTest {
     void testRemoveAllIndirectPathSuccessfully() throws RoutingTableNodeAlreadyPresentException {
         NodeName node = new NodeName("Node9",10);
         NodeName node1 = new NodeName("Node10",10);
-        socketHandler = new ClientSocketHandler(socket, node1, null);
+        socketHandler = new ClientSocketHandler(socket, node1, null, false);
 
         routingTable.addPath(node, socketHandler);
         routingTable.addPath(node1, socketHandler);

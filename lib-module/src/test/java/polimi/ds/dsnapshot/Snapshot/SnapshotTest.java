@@ -12,14 +12,15 @@ import polimi.ds.dsnapshot.Connection.ClientSocketHandler;
 import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.NodeName;
-import polimi.ds.dsnapshot.Connection.RoutingTable.RoutingTable;
-import polimi.ds.dsnapshot.Connection.SpanningTree;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.RoutingTable.RoutingTable;
+import polimi.ds.dsnapshot.Connection.SnashotSerializable.SPT.SpanningTree;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContentWithName;
 import polimi.ds.dsnapshot.Events.EventsBroker;
 import polimi.ds.dsnapshot.Exception.DSException;
 import polimi.ds.dsnapshot.Exception.DSMessageToMyselfException;
 import polimi.ds.dsnapshot.Exception.DSNodeUnreachableException;
 import polimi.ds.dsnapshot.Exception.EventException;
+import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 import polimi.ds.dsnapshot.Utilities.Config;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
@@ -40,8 +41,10 @@ public class SnapshotTest {
     private ClientSocketHandler clientSocketHandlerMock;
 
     private SnapshotManager snapshotManger;
+    @Mock
+    JavaDistributedSnapshot javaDistributedSnapshot;
 
-
+    ExampleApplicationInterface exampleApplicationInterface;
 
     @BeforeEach
     public void setup() {
@@ -49,10 +52,13 @@ public class SnapshotTest {
 
         MockitoAnnotations.openMocks(this);
 
-        JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
+        javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
         javaDistributedSnapshot.setConnectionManager(connectionManagerMock);
 
-
+        exampleApplicationInterface = new ExampleApplicationInterface();
+        javaDistributedSnapshot.setApplicationLayerInterface(exampleApplicationInterface);
+        Random rand = new Random();
+        exampleApplicationInterface.state.i = rand.nextInt();
         snapshotManger = new SnapshotManager(connectionManagerMock);
         System.out.println(" ");
 
@@ -64,13 +70,8 @@ public class SnapshotTest {
         NodeName name = new NodeName("friggeri",0);
         when(connectionManagerMock.getName()).thenReturn(name);
 
-        ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
-        Random rand = new Random();
-        exampleApplicationInterface.state.i = rand.nextInt();
-
         //set the application interface allowing snapshot to retrieve the application state
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
-        javaDistributedSnapshot.setApplicationLayerInterface(exampleApplicationInterface);
         javaDistributedSnapshot.joinNetwork("friggioggi",0);
 
         //fake routing table and spanning tree
@@ -158,11 +159,6 @@ public class SnapshotTest {
     private void testTokenSupport(List<String> snapshotStarterMessages, List<String> n1Messages,List<String> n2Messages,List<String> snapshotMessagesContent, int port) throws InterruptedException, DSException, EventException {
         NodeName name = new NodeName("friggeri",port);
         when(connectionManagerMock.getName()).thenReturn(name);
-
-        //application state
-        ExampleApplicationInterface exampleApplicationInterface = new ExampleApplicationInterface();
-        Random rand = new Random();
-        exampleApplicationInterface.state.i = rand.nextInt();
 
         //set the application interface allowing snapshot to retrieve the application state
         JavaDistributedSnapshot javaDistributedSnapshot =  JavaDistributedSnapshot.getInstance();
@@ -261,6 +257,12 @@ public class SnapshotTest {
         public <T extends Serializable> T getApplicationState() {
             return (T) state;
         }
+
+        @Override
+        public void setApplicationState(Serializable appS) {
+            //empty
+        }
+
 
         @Override
         public void exitNotify(String ip, int port) {

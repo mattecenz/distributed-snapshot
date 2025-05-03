@@ -26,15 +26,15 @@ We need both the library and the application.
 
 
 
-| FEATURE | Implemented | Tested | 
-| ---- | ----- | ------- | 
-| Join procedure | :green_circle: | :green_circle: | 
-| Send msg | :green_circle: | :green_circle: |
-| Exit procedure | :green_circle: | :green_circle: |
-| Ping pong | :green_circle: | :red_circle: |
-| Ping pong fail reaction | :red_circle: | :red_circle: |
-| Snapshot procedure | :green_circle: | :orange_circle: [partially tested] |
-| Snapshot procedure reset | :red_circle: | :red_circle: |
+| FEATURE | Implemented | Tested             | 
+| ---- | ----- |--------------------| 
+| Join procedure | :green_circle: | :green_circle:     | 
+| Send msg | :green_circle: | :green_circle:     |
+| Exit procedure | :green_circle: | :green_circle:     |
+| Ping pong | :green_circle: | :red_circle:       |
+| Ping pong fail reaction | :red_circle: | :red_circle:       |
+| Snapshot procedure | :green_circle: | :green_circle:     |
+| Snapshot procedure reset | :green_circle: | :yellow_circle: (manually tested) |
 
 
 

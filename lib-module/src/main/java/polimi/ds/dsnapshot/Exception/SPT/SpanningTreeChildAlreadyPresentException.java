@@ -1,4 +1,4 @@
-package polimi.ds.dsnapshot.Exception;
+package polimi.ds.dsnapshot.Exception.SPT;
 
 public class SpanningTreeChildAlreadyPresentException extends RuntimeException {
     public SpanningTreeChildAlreadyPresentException() {
