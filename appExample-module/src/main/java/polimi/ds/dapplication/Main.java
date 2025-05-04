@@ -1,12 +1,9 @@
 package polimi.ds.dapplication;
 
 import polimi.ds.dapplication.Message.StringMessage;
-import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
+import polimi.ds.dsnapshot.Exception.ExportedException.*;
 import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
 
-import java.io.IOException;
 import java.util.Scanner;
 
 public class Main {
@@ -82,8 +79,15 @@ public class Main {
 
         try {
             JavaDistributedSnapshot.getInstance().sendMessage(sm, ip, port);
-        } catch (IOException e) {
-            System.err.println("The library threw an IOException: " + e.getMessage());
+        } catch (DSNodeUnreachableException e) {
+            System.err.println("The client you tried to contact is unreachable. Are you sure it is in the network?");
+        } catch (DSMessageToMyselfException e) {
+            SystemOutTS.println("You are sending a message to yourself, try choosing another destination.");
+        } catch (DSConnectionUnavailableException | DSNetworkCrashedException e ) {
+            System.err.println("The connection has been suspended due to a potential node crash. " +
+                    "Please restore the network and start the recovery procedure");
+        } catch (DSException e) {
+            System.err.println("Generic DS exception: " + e.getMessage());
         }
     }
 
@@ -104,13 +108,21 @@ public class Main {
                         sendMessage();
                     }
                     case "exit" -> {
-                        // TODO is this correct ?
                         try {
                             JavaDistributedSnapshot.getInstance().leaveNetwork();
-                        } catch (JavaDSException e) {
-                            System.err.println("The library threw a JavaDSException: " + e.getMessage());
+                            finished=true;
                         }
-                        finished=true;
+                        catch (DSException e){ // Exception for when the network crashed
+                            SystemOutTS.println(e.getMessage());
+                        }
+                    }
+                    case"reconnect" -> {
+                        try{
+                            JavaDistributedSnapshot.getInstance().reconnect();
+                        }
+                        catch (DSException e){
+                            SystemOutTS.println(e.getMessage());
+                        }
                     }
                     case "snapshot" ->{
                         // Is there something else to do ? idk
@@ -135,6 +147,8 @@ public class Main {
                                 "exit:\t\t exit the network and the program \n" +
                                 "snapshot:\t manually start a snapshot \n" +
                                 "history:\t list all received messages \n" +
+                                "reconnect:\t reconnect to the parent node (only use when crashes happen) \n"+
+                                "restore:\t restore the latest saved snapshot \n" +
                                 "surprise:\t are you brave enough to discover it? \n"+
                                 "");
                     }
@@ -152,6 +166,9 @@ public class Main {
     }
 
     private static void restoreSnapshot(){
+
+        SystemOutTS.println("Here are all the snapshots saved for this node:");
+        SystemOutTS.println(JavaDistributedSnapshot.getInstance().getAvailableSnapshots());
         SystemOutTS.print("Enter the code of the snapshot to be restored: "); //code -> random string
         String code = scanner.nextLine();
         SystemOutTS.print("Enter the ip saved in the name of the snapshot to be restored: ");
@@ -161,11 +178,8 @@ public class Main {
 
         try {
             JavaDistributedSnapshot.getInstance().restoreSnapshot(code,ip,port);
-        } catch (SnapshotRestoreRemoteException e) {
-            SystemOutTS.println("The library threw a SnapshotRestoreRemoteException: " + e.getMessage());
-            return;
-        } catch (SnapshotRestoreLocalException e) {
-            SystemOutTS.println("The library threw a SnapshotRestoreLocalException: " + e.getMessage());
+        } catch (DSSnapshotRestoreRemoteException | DSSnapshotRestoreLocalException e) {
+            SystemOutTS.println(e.getMessage());
             return;
         }
 
@@ -173,53 +187,60 @@ public class Main {
     }
 
     private static void joinNetwork(){
-        SystemOutTS.print("Enter the port you want to open your connection: ");
-        int myPort = retryInputInteger();
 
-        // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
+        boolean done =false;
 
-        SystemOutTS.print("Enter ip of the node you want to connect to: ");
-        String ip = retryInput(regexIp);
+        while(!done) {
+            try {
 
-        // Avoid error checking on the port for the moment
-        SystemOutTS.print("Enter port of the node you want to connect to: ");
-        int port = retryInputInteger();
+                SystemOutTS.print("Enter ip of the node you want to connect to: ");
+                String ip = retryInput(regexIp);
 
-        try {
-            JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
+                // Avoid error checking on the port for the moment
+                SystemOutTS.print("Enter port of the node you want to connect to: ");
+                int port = retryInputInteger();
 
-            // At this moment we have a new connection so we can do whatever we want
-            applicationLoop();
-
-            // TODO: add more detailed exceptions
-        } catch (JavaDSException e) {
-            // The error output stream for the moment can be used without locks
-            System.err.println("We caught an exception! "+e.getMessage());
+                JavaDistributedSnapshot.getInstance().joinNetwork(ip, port);
+                done = true;
+            } catch (DSNodeUnreachableException e) {
+                // The error output stream for the moment can be used without locks
+                System.err.println("The node you are trying to contact is unreachable. Are you sure it is in the network?");
+            } catch (DSMessageToMyselfException e) {
+                System.err.println("You cannot connect to yourself! Please try again.");
+            } catch (DSException e) {
+                System.err.println("Generic DS exception: " + e.getMessage());
+            }
         }
+
+        // At this moment we have a new connection so we can do whatever we want
+        applicationLoop();
 
         // Exit from the application if an exception is raised
     }
 
-    private static void createNetwork(){
+    public static void main(String[] args) {
+
+        SystemOutTS.print("Enter your ip address: ");
+        String ip = retryInput(regexIp);
 
         SystemOutTS.print("Enter port of the client you want to create: ");
         int myPort = retryInputInteger();
 
-        // TODO: is it good ?
-        JavaDistributedSnapshot.getInstance().startSocketConnection(myPort, appUtility);
-
-        applicationLoop();
-    }
-
-    public static void main(String[] args) {
+        try {
+            JavaDistributedSnapshot.getInstance().startSocketConnection(ip, myPort, appUtility);
+        } catch (DSPortAlreadyInUseException e) {
+            System.err.println("The port you entered is already in use on this machine, choose another one.");
+            return;
+        } catch (DSException e) {
+            System.err.println("Generic DS exception: " + e.getMessage());
+        }
 
         // Ask the client if he wants to join a network or not
         SystemOutTS.print("Do you want to create a new network? [y/N] ");
         String res = retryInput(regexYN);
 
         if(res.equalsIgnoreCase("y")){
-            createNetwork();
+            applicationLoop();
         }
         else{
             joinNetwork();

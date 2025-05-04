@@ -6,14 +6,11 @@ import polimi.ds.dsnapshot.Connection.ConnectionManager;
 import polimi.ds.dsnapshot.Connection.Messages.ApplicationMessage;
 import polimi.ds.dsnapshot.Connection.NodeName;
 import polimi.ds.dsnapshot.Events.CallbackContent.CallbackContent;
-import polimi.ds.dsnapshot.Exception.ExportedException.JavaDSException;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreLocalException;
-import polimi.ds.dsnapshot.Exception.ExportedException.SnapshotRestoreRemoteException;
+import polimi.ds.dsnapshot.Exception.ExportedException.*;
 import polimi.ds.dsnapshot.Snapshot.SnapshotIdentifier;
 import polimi.ds.dsnapshot.Utilities.LoggerManager;
 import polimi.ds.dsnapshot.Utilities.ThreadPool;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -32,49 +29,49 @@ public class JavaDistributedSnapshot{
         return instance;
     }
 
-    //todo find better name
-    public void startSocketConnection(int hostPort, ApplicationLayerInterface applicationLayerInterface) {
+    public void startSocketConnection(String ip, int hostPort, ApplicationLayerInterface applicationLayerInterface) throws DSException {
         //start log
         LoggerManager.start(hostPort);
 
-        connectionManager = new ConnectionManager(hostPort);
+        connectionManager = new ConnectionManager(ip, hostPort);
         connectionManager.start();
 
         JavaDistributedSnapshot.applicationLayerInterface = applicationLayerInterface;
         LoggerManager.getInstance().mutableInfo("set application interface: " + applicationLayerInterface, Optional.of(this.getClass().getName()), Optional.of("joinNetwork"));
     }
 
-    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws JavaDSException {
-        try {
-            NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
-            connectionManager.joinNetwork(anchorNodeName);
-        } catch (IOException e) {
-            throw new JavaDSException(e.getMessage()); //todo: wrap messages
-        }
+    public void joinNetwork(String anchorNodeIp, int anchorNodePort) throws DSException {
+        NodeName anchorNodeName = new NodeName(anchorNodeIp, anchorNodePort);
+        connectionManager.joinNetwork(anchorNodeName);
     }
 
-    public void leaveNetwork() throws JavaDSException{
+    public void leaveNetwork() throws DSException{
         applicationLayerInterface = null;
-        try {
-            connectionManager.exitNetwork();
-        } catch (IOException e) {
-            throw new JavaDSException(e.getMessage()); //todo: wrap messages
-        }
+        connectionManager.exitNetwork();
     }
 
-    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws IOException {
+    public void sendMessage(Serializable messageContent, String destinationIp, int destinationPort) throws DSException {
         NodeName destinationNodeName = new NodeName(destinationIp, destinationPort);
 
         connectionManager.sendMessage(messageContent, destinationNodeName);
+    }
+
+    public void reconnect() throws DSException {
+        connectionManager.reconnectToAnchor();
     }
 
     public void startNewSnapshot(){
         connectionManager.startNewSnapshot();
     }
 
-    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort) throws SnapshotRestoreRemoteException, SnapshotRestoreLocalException {
+    public void restoreSnapshot(String snapshotId, String snapshotIp, int snapshotPort) throws DSSnapshotRestoreRemoteException, DSSnapshotRestoreLocalException {
         SnapshotIdentifier snapshotIdentifier = new SnapshotIdentifier(new NodeName(snapshotIp,snapshotPort),snapshotId);
         connectionManager.startSnapshotRestoreProcedure(snapshotIdentifier);
+    }
+
+    public String getAvailableSnapshots(){
+
+        return connectionManager.getAvailableSnapshots();
     }
 
     @ApiStatus.Internal

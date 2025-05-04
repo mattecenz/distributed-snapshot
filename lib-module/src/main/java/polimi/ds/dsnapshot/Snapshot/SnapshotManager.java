@@ -252,4 +252,42 @@ public class SnapshotManager {
         return file;
     }
 
+    public String getAllSnapshotsOfNode(NodeName nodeName){
+        File snapshotDir = new File(snapshotPath);
+
+        // Match all the files containing my name
+
+        File[] myFiles = snapshotDir.listFiles((dir, name) ->
+                name.split("-")[3].split("_")[0].equals(Integer.toString(nodeName.getPort())));
+
+        // Convert the files into a string
+
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("Code \t\t Owner Name \t Time saved \n");
+
+        for(File file : myFiles){
+            String[] fileNamePieces = file.getName().split("-");
+            stringBuilder.append(fileNamePieces[0])
+                    .append("\t")
+                    .append(fileNamePieces[1])
+                    .append(":")
+                    .append(fileNamePieces[2])
+                    .append("\t")
+                    .append(fileNamePieces[5])
+                    .append("/")
+                    .append(fileNamePieces[4])
+                    .append("/")
+                    .append(fileNamePieces[3].split("_")[1])
+                    .append(" ")
+                    .append(fileNamePieces[6])
+                    .append(":")
+                    .append(fileNamePieces[7])
+                    .append(":")
+                    .append(fileNamePieces[8].split("\\.")[0])
+                    .append("\n");
+        }
+
+        return stringBuilder.toString();
+    }
+
 }
