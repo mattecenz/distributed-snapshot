@@ -6,37 +6,40 @@ import polimi.ds.dsnapshot.Api.JavaDistributedSnapshot;
 
 import java.util.Scanner;
 
+/**
+ * Example of a main class which the application can use for interfacing with the snapshot library.
+ */
 public class Main {
 
     /**
-     * Scanner to read the input of the user
+     * Scanner to read the input of the user.
      */
     private final static Scanner scanner = new Scanner(System.in);
 
     /**
-     * Hook from callback from the library
+     * Hook from callback from the library.
      */
     private final static AppUtility appUtility = new AppUtility();
 
     /**
-     * Internal state of the application
+     * Internal state of the application.
      */
     private final static AppState appState = new AppState();
 
     /**
-     * Regex to check that the inserted ip is correct
+     * Regex to check that the inserted ip is correct.
      */
     private final static String regexIp = "|localhost|(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])\\.(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])\\.(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])\\.(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])";
 
     /**
-     * Regex for yes/no answers
+     * Regex for yes/no answers.
      */
     private final static String regexYN = "y|Y|n|N|";
 
     /**
-     * Retry the input until the regex is not matched
-     * @param regex regex to match
-     * @return the correct input string
+     * Retry the input until the regex is not matched.
+     * @param regex regex to match.
+     * @return the correct input string.
      */
     private static String retryInput(String regex){
         String input = scanner.nextLine();
@@ -48,8 +51,8 @@ public class Main {
     }
 
     /**
-     * Retry the integer input until the user inserts the correct one
-     * @return the correct input integer
+     * Retry the integer input until the user inserts the correct one.
+     * @return the correct input integer.
      */
     private static Integer retryInputInteger(){
         Integer input;
@@ -64,7 +67,10 @@ public class Main {
         return input;
     }
 
-
+    /**
+     * Method to let the user decide to who wands to send a message to.
+     * It sends the message and if any errors occur the user is notified.
+     */
     private static void sendMessage(){
         SystemOutTS.print("Enter ip of the receiver of the message: ");
         String ip = retryInput(regexIp);
@@ -91,6 +97,9 @@ public class Main {
         }
     }
 
+    /**
+     * Application loop which continuously asks the user for an input.
+     */
     private static void applicationLoop(){
 
         boolean finished = false;
@@ -165,6 +174,10 @@ public class Main {
 
     }
 
+    /**
+     * Method which lets the user decide the snapshot to restore and initiate the snapshot procedure.
+     * If the procedure fails the user is notified with a text message.
+     */
     private static void restoreSnapshot(){
 
         SystemOutTS.println("Here are all the snapshots saved for this node:");
@@ -186,6 +199,10 @@ public class Main {
         SystemOutTS.print("Snapshot restored successfully. can resume operations");
     }
 
+    /**
+     * Method which lets the user join a new network by specifying the node to connect to.
+     * If something goes wrong there is a retry procedure.
+     */
     private static void joinNetwork(){
 
         boolean done =false;
@@ -218,6 +235,11 @@ public class Main {
         // Exit from the application if an exception is raised
     }
 
+    /**
+     * Main of the application.
+     * It asks for the initial configuration of the node, starts the connection and then enters the join procedure.
+     * @param args generic input arguments
+     */
     public static void main(String[] args) {
 
         SystemOutTS.print("Enter your ip address: ");
@@ -247,10 +269,17 @@ public class Main {
         }
     }
 
+    /**
+     * Getter of the application state.
+     * @return the application state.
+     */
     public static AppState getAppState(){
         return appState;
     }
 
+    /**
+     * Print a surprise in the output !
+     */
     private static void surprise(){
         SystemOutTS.println("""
                 ⢀⡴⠑⡄⠀⠀⠀⠀⠀⠀⠀⣀⣀⣤⣤⣤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
