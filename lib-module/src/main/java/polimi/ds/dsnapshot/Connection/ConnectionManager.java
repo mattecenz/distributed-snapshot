@@ -53,30 +53,40 @@ import polimi.ds.dsnapshot.Utilities.ThreadPool;
 public class ConnectionManager {
 
     /**
-     * List of active connections which do not have yet a name
+     * List of active connections which do not have yet a name.
      */
     private final List<UnNamedSocketHandler> unNamedHandlerList;
     /**
-     * List of all the active connections in the network
+     * List of all the active connections in the network.
      */
     private final List<ClientSocketHandler> handlerList;
     /**
      * Routing table of the application.
-     * It is an atomic reference since all the operations in it must be run atomically to avoid inconsistencies
      */
     private final RoutingTable routingTable = new RoutingTable();
+    /**
+     * Spanning tree of the application.
+     */
     private final SpanningTree spt = new SpanningTree();
+    /**
+     * Manager of the snapshot called whenever a creation/restore procedure is invoked.
+     */
     private final SnapshotManager snapshotManager = new SnapshotManager(this);
+    /**
+     * Manager of the pending requests waiting for the responses of the 2PC phase of the snapshot.
+     */
     private SnapshotPendingRequestManager snapshotPendingRequestManager = null;
     /**
-     * Reference to the handler of the acks
+     * Reference to the handler of the acks.
      */
     private final AckHandler ackHandler;
     /**
      * Name of this connection manager.
-     * For the moment we can assume it is immutable
      */
     private final NodeName name;
+    /**
+     * Event used when needing to forward an application message towards another peer.
+     */
     private Event toForwardEvent;
     /**
      * Socket created for receiving inbound messages.
@@ -88,21 +98,23 @@ public class ConnectionManager {
      */
     private boolean panicMode=false;
     /**
-     * Name of the parent who crashed. Useful for reconnection procedures
+     * Name of the parent who crashed. Useful for reconnection procedures.
      */
     private Optional<NodeName> nameOfCrashedParent = Optional.empty();
     /**
-     * Name of the children who crashed. Useful for reconnection procedures
+     * Name of the children who crashed. Useful for reconnection procedures.
      */
     private final List<NodeName> nameOfCrashedChildren = new ArrayList<>();
-
+    /**
+     * Probability of establishing a direct connection when a new node enters the network.
+     */
     double directConnectionProbability = Config.getDouble("network.directConnectionProbability");
 
     /**
-     * Constructor of the connection manager
-     * @param ip ip of the client (useful for naming purposes)
-     * @param port port of the client where the socket is opened
-     * @throws DSException DSPortAlreadyInUseException, if the port is already used by someone else
+     * Constructor of the connection manager.
+     * @param ip IP of the client.
+     * @param port Port of the client where the socket is opened.
+     * @throws DSException DSPortAlreadyInUseException, if the port is already used by someone else.
      */
     public ConnectionManager(String ip, int port) throws DSException{
         this.unNamedHandlerList = new ArrayList<>();
@@ -154,10 +166,18 @@ public class ConnectionManager {
         LoggerManager.getInstance().mutableInfo("ConnectionManager created successfully. My name is: "+this.name.getIP()+":"+this.name.getPort() , Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
     }
 
+    /**
+     * Getter of the name of the node.
+     * @return The name of the node.
+     */
     public NodeName getName() {
         return name;
     }
 
+    /**
+     * Method called when the connection manager is ready to start normal operations.
+     * It will launch the thread which waits for inbound messages.
+     */
     public void start(){
         LoggerManager.getInstance().mutableInfo("Preparing the thread...", Optional.of(this.getClass().getName()), Optional.of("start"));
 
@@ -192,6 +212,14 @@ public class ConnectionManager {
         t.start();
     }
 
+    /**
+     * Method which sends a message and waits for an ack to be received.
+     * Can be exposed to the application.
+     * @param m Message to be sent.
+     * @param ip IP of the node to send the message to.
+     * @param port Port of the node to send the message to.
+     * @return True if everything went well.
+     */
     // TODO: maybe its better if the method is private (called by a generic sendMessage that works as interface)
     // TODO: refactor well to work with exceptions
     // TODO: discuss a bit if every message needs the destination ip:port
@@ -219,6 +247,14 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method which sends a message and waits for an ack to be received.
+     * @param m Message to be sent.
+     * @param handler Socket handler where the message is sent.
+     * @return True if everything went well.
+     * @throws AckTimeoutExpiredException If the ack did not arrive in time.
+     * @throws SocketClosedException If the socket has already been closed.
+     */
     protected boolean sendMessageSynchronized(Message m, ClientSocketHandler handler) throws AckTimeoutExpiredException, SocketClosedException {
 
         LoggerManager.getInstance().mutableInfo("Sending a message: "+ m.getClass().getName() +" to "+handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort()+"...", Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
@@ -255,10 +291,10 @@ public class ConnectionManager {
     }
 
     /**
-     * Processes a direct connection message received from another node
-     * @param nodeName Name of the node to be added to the table
-     * @param handler handler of the socket
-     * @throws RoutingTableNodeAlreadyPresentException if the ip address is already in the routing table
+     * Add a new entry to the current routing table.
+     * @param nodeName Name of the node to be added to the table.
+     * @param handler Handler of the socket.
+     * @throws RoutingTableNodeAlreadyPresentException If the node name is already in the routing table.
      */
     private void addNewRoutingTableEntry(NodeName nodeName, ClientSocketHandler handler) throws RoutingTableNodeAlreadyPresentException {
         this.routingTable.addPath(nodeName,handler);
@@ -268,8 +304,8 @@ public class ConnectionManager {
     /**
      * Establishes a connection to an anchor node in the network by creating a socket connection.
      * Sends a `JoinMsg` message to the specified node in order to initiate the join process.
-     * @param anchorName name of the anchor node to connect to
-     * @throws DSException if something unexpected has happened (either DSMessageToMyselfException or DSNodeUnreachableException)
+     * @param anchorName Name of the anchor node to connect to.
+     * @throws DSException If something unexpected has happened (either DSMessageToMyselfException or DSNodeUnreachableException or DSConnectionUnavailableException).
      */
     public void joinNetwork(NodeName anchorName) throws DSException {
         if(anchorName.equals(this.name)) throw new DSMessageToMyselfException();
@@ -278,6 +314,12 @@ public class ConnectionManager {
         joinNetwork(anchorName,msg);
     }
 
+    /**
+     * Private method for joining the network used only for internal purposes.
+     * @param anchorName Name of the anchor node to connect to.
+     * @param joinMsg Join message to be sent.
+     * @throws DSException If something unexpected has happened (either DSNodeUnreachableException or DSConnectionUnavailableException).
+     */
     private void joinNetwork(NodeName anchorName, JoinMsg joinMsg) throws DSException {
         try {
 
@@ -331,6 +373,11 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method used when the anchor node has crashed.
+     * It tries to reconnect to it automatically and re-initiate a join procedure.
+     * @throws DSException If the node is unavailable.
+     */
     public void reconnectToAnchor() throws DSException  {
         if(this.nameOfCrashedParent.isEmpty()) {
             LoggerManager.getInstance().mutableInfo("The parent has not crashed, do nothing.", Optional.of(this.getClass().getName()), Optional.of("reconnectToAnchor"));
@@ -350,12 +397,12 @@ public class ConnectionManager {
     }
 
     /**
-    * Handles a join request received from another node in the network.
-    *
-    * @param joinMsg Message received
-    * @param unnamedHandler the {@link UnNamedSocketHandler} managing the client communication
-    *                for the incoming connection.
-    */
+     * Handles a join request received from another node in the network.
+     * In case of a crashed network it will only accept joins if the node was previously connected.
+     * It is a synchronized method.
+     * @param joinMsg Join message received.
+     * @param unnamedHandler The unnamed socket handler managing the client communication for the incoming connection.
+     */
     synchronized void receiveNewJoinMessage(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) {
         if(this.panicMode) {
 
@@ -385,6 +432,16 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method which handles the new connection of a node (either a join or a direct connection).
+     * It sends the ack back to the original sender, and notifies all the other nodes in the routing table
+     * that a new join has occurred.
+     * It is a synchronized method.
+     * @param joinMsg Join message received.
+     * @param unnamedHandler Unnamed handler from where the connection has been activated.
+     * @return The new socket handler.
+     * @throws RoutingTableNodeAlreadyPresentException If the node is already in the routing table.
+     */
     synchronized ClientSocketHandler receiveAdoptionOrJoinRequest(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) throws RoutingTableNodeAlreadyPresentException {
         LoggerManager.getInstance().mutableInfo("Join request received from node "+joinMsg.getJoinerName().getIP()+":"+joinMsg.getJoinerName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveAdoptionOrJoinRequest"));
         // Create the new handler
@@ -418,6 +475,11 @@ public class ConnectionManager {
         return handler;
     }
 
+    /**
+     * Method to forward the join message towards the other nodes in the routing table.
+     * @param joinMsg Join message received.
+     * @param handler New handler where the connection has been created. The method avoids sending the message to him.
+     */
     private void sendJoinForwardMsg(JoinMsg joinMsg, ClientSocketHandler handler) {
         //forward join notify to active neighbours
         JoinForwardMsg m = new JoinForwardMsg(joinMsg.getJoinerName());
@@ -438,10 +500,9 @@ public class ConnectionManager {
 
     /**
      * Handles a direct connection request received from another node in the network.
-     *
-     * @param directConnectionMsg Message received
-     * @param unnamedHandler the {@link UnNamedSocketHandler} managing the client communication
-     *                for the incoming connection.
+     * It is a synchronized method.
+     * @param directConnectionMsg Message received.
+     * @param unnamedHandler The unnamed socket handler managing the client communication for the incoming connection.
      */
     synchronized void receiveNewDirectConnectionMessage(DirectConnectionMsg directConnectionMsg, UnNamedSocketHandler unnamedHandler) {
         // TODO: refactor duplicate code with above function
@@ -475,8 +536,9 @@ public class ConnectionManager {
 
     /**
      * Handles a forwarded join request in the network.
-     * @param msg the {@link JoinForwardMsg} containing details about the forwarder and the joiner.
-     * @param handler the {@link ClientSocketHandler} managing the client communication
+     * With a certain probability it will activate a new connection, else just saves the path in the routing table.
+     * @param msg Join forward message received.
+     * @param handler The socket handler where the message has been received.
      */
     private void receiveJoinForward(JoinForwardMsg msg, ClientSocketHandler handler) throws IOException {
         double randomValue = ThreadLocalRandom.current().nextDouble();
@@ -512,6 +574,12 @@ public class ConnectionManager {
     }
     // </editor-fold>
 
+    /**
+     * Method called by the application when the client wants to gracefully leave the network.
+     * It will notify all the other nodes about the decision and terminate all active connections.
+     * If the panic mode is activated it is not possible to leave the network.
+     * @throws DSException If some error occurred.
+     */
     // <editor-fold desc="Exit procedure">
     public synchronized void exitNetwork() throws DSException {
         if(this.panicMode) {
@@ -567,6 +635,13 @@ public class ConnectionManager {
         LoggerManager.getInstance().mutableInfo("clear routing table during exit", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
     }
 
+    /**
+     * Method called when a new exit message it is received.
+     * It will clear all the connections which passed towards that node.
+     * @param msg Exit message received.
+     * @param handler Socket handler from where the exit was received.
+     * @throws IOException If something goes wrong while closing the connections.
+     */
     private void receiveExit(ExitMsg msg, ClientSocketHandler handler) throws IOException {
         LoggerManager.getInstance().mutableInfo("receive exit from: " +handler.getRemoteNodeName().getIP()+":"+handler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExit"));
         try{
@@ -607,6 +682,12 @@ public class ConnectionManager {
 
     }
 
+    /**
+     * Method which initiates the crash procedure whenever an anomaly is detected (socket forcefully closed or ping failed).
+     * It will initiate the panic mode and leave open only the connections which exchange the ping pong information.
+     * It is a synchronized procedure.
+     * @param handler Handler crashed.
+     */
     synchronized void initiateCrashProcedure(ClientSocketHandler handler) {
         // When a crash happens the safest thing to do is to block everything from executing.
         // Which means block the application from sending messages.
@@ -652,6 +733,10 @@ public class ConnectionManager {
 
     }
 
+    /**
+     * Method to only initiate a panic mode if some thread notices an anomaly when trying to use a socket handler.
+     * It is a synchronized procedure.
+     */
     synchronized void initiatePanicMode(){
         if(this.panicMode) return;
 
@@ -688,8 +773,8 @@ public class ConnectionManager {
     /**
      * Handles the assignment of a new anchor node when the current anchor node exits the network.
      * This method determines whether a path to the new anchor exists in the routing table
-     * and establishes a direct connection if necessary.
-     * @param msg     the {@link ExitMsg} containing the IP and port of the new anchor node.
+     * and establishes a direct connection if not present.
+     * @param msg The Exit message containing the name of the new anchor node.
      */
     private void newAnchorNode(ExitMsg msg) throws IOException {
         LoggerManager.getInstance().mutableInfo("trying to assign new anchor...", Optional.of(this.getClass().getName()), Optional.of("newAnchorNode"));
@@ -726,6 +811,11 @@ public class ConnectionManager {
         this.newAnchorNodeEstablishDirectConnection(msg.getNewAnchorName());
     }
 
+    /**
+     * Method which creates a new direct connection towards the new anchor node.
+     * It is the same procedure as the join.
+     * @param nodeName Name of the new anchor node.
+     */
     private void newAnchorNodeEstablishDirectConnection(NodeName nodeName)  {
         AdoptionRequestMsg msg = new AdoptionRequestMsg(this.name);
         ThreadPool.submit(()->{
@@ -741,6 +831,11 @@ public class ConnectionManager {
         });
     }
 
+    /**
+     * Method which notifies the spanning tree of the graceful exit of a node.
+     * @param nodeName Name of the node who left the network.
+     * @param handler Optional handler (used for deciding if the connection has to be send towards that handler or not).
+     */
     private void sendExitNotify(NodeName nodeName, Optional<ClientSocketHandler> handler){
         LoggerManager.getInstance().mutableInfo("send exit notify", Optional.of(this.getClass().getName()), Optional.of("sendExitNotify"));
         ExitNotify exitNotify = new ExitNotify(nodeName);
@@ -752,6 +847,12 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method invoked when an exit notify is received.
+     * It will remove all the paths from the routing table towards that node.
+     * @param exitNotify Exit notify message containing the name of the node who left.
+     * @param handler Handler from where the connection has been received.
+     */
     private void receiveExitNotify(ExitNotify exitNotify, ClientSocketHandler handler){
         LoggerManager.getInstance().mutableInfo("received exit notify for node: " +exitNotify.getExitName().getIP()+ ":" +exitNotify.getExitName().getPort(), Optional.of(this.getClass().getName()), Optional.of("receiveExitNotify"));
         try {
@@ -765,6 +866,11 @@ public class ConnectionManager {
 
     // </editor-fold>
 
+    /**
+     * Method used when a snapshot token is received.
+     * It forwards it towards all the outgoing channels.
+     * @param tokenMessage Token received.
+     */
     // <editor-fold desc="Snapshot procedure">
     private void forwardToken(TokenMessage tokenMessage){
         try {
@@ -778,10 +884,19 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method used by the application to retrieve all the available snapshots in which this node is involved.
+     * @return A string containing a pretty description of all the snapshots.
+     */
     public String getAvailableSnapshots(){ // Ideally synchronized would be better but its fine for now
         return this.snapshotManager.getAllSnapshotsOfNode(this.name);
     }
 
+    /**
+     * Method called when the application wants to start a new snapshot.
+     * It generates the name of the snapshot, saves the state and forwards all the tokens.
+     * It is an atomic operation.
+     */
     public synchronized void startNewSnapshot(){
         //snapshot preparation
         String CHARACTERS = Config.getString("snapshot.codeAdmissibleChars");
@@ -800,6 +915,14 @@ public class ConnectionManager {
     }
     // </editor-fold>
 
+    /**
+     * Method called when the application wants to restore a snapshot.
+     * It initiates the 2PC procedure, locks the application and waits for the response.
+     * If the 2PC is successful it starts the reconstruction procedure.
+     * @param snapshotIdentifier Unique identifier of the snapshot to be restored.
+     * @throws DSSnapshotRestoreLocalException If the local node had some problem.
+     * @throws DSSnapshotRestoreRemoteException If the remote node had some problem.
+     */
     // <editor-fold desc="restore Snapshot procedure">
     public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws DSSnapshotRestoreLocalException, DSSnapshotRestoreRemoteException {
         LoggerManager.getInstance().mutableInfo("starting snapshot restore procedure (2PC)", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
@@ -848,6 +971,11 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method which constructs the pending requests.
+     * It will create an handler for each node in the spt and wait for a response from it.
+     * @param sender Optional name of the sender node.
+     */
     private void fillPendingRequests(Optional<NodeName> sender){
         try {
             NodeName anchorNodeName = spt.getAnchorNodeHandler().getRemoteNodeName();
@@ -864,6 +992,14 @@ public class ConnectionManager {
         LoggerManager.getInstance().mutableInfo("the node is waiting for " + snapshotPendingRequestManager.pendingRequestCount() + " pending request before restoring the snapshot", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
     }
 
+    /**
+     * Method called when a request to restore a snapshot is received.
+     * It checks internally if the snapshot can be restored, will propagate the request to all the other nodes in the spt
+     * and wait for their response.
+     * Finally, it sends back to the sender his final response.
+     * @param restoreSnapshotRequest Message received.
+     * @param sender Socket handler who sent the request.
+     */
     private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
         LoggerManager.getInstance().mutableInfo("the node has received a restore request", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
         try {
@@ -915,6 +1051,13 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method invoked when the restore response has been received.
+     * It waits that all the responses are received, and after will send the agreed value towards the original handler.
+     * It is a synchronized operation.
+     * @param restoreSnapshotResponse Message received.
+     * @param handler Handler where the message was received from.
+     */
     private synchronized void receiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler){
         LoggerManager.getInstance().mutableInfo("the node has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreResponse"));
         if(this.snapshotPendingRequestManager == null) {
@@ -952,6 +1095,14 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method called only by the leader of the 2PC procedure when restoring a snapshot.
+     * It waits for all the response along his branches for the spt, then when everyone responded
+     * he can take an decision and send in broadcast the agreed value.
+     * It is a synchronized operation.
+     * @param restoreSnapshotResponse Message received.
+     * @param handler Handler where the message was received from.
+     */
     private synchronized void leaderReceiveSnapshotRestoreResponse(RestoreSnapshotResponse restoreSnapshotResponse, ClientSocketHandler handler) {
         LoggerManager.getInstance().mutableInfo("the snapshot leader has received a restore response with value: " + restoreSnapshotResponse.isSnapshotValid(), Optional.of(this.getClass().getName()), Optional.of("leaderReceiveSnapshotRestoreResponse"));
         try {
@@ -983,6 +1134,13 @@ public class ConnectionManager {
 
     }
 
+    /**
+     * Method called when a node receives the 2PC agreed value.
+     * It will forward the message towards all the other nodes in the spt.
+     * It is a synchronized operation.
+     * @param agreementResult Message received containing the agreed result.
+     * @param handler Handler from where the message was received.
+     */
     private synchronized void receiveAgreementResult(RestoreSnapshotRequestAgreementResult agreementResult, ClientSocketHandler handler){
         try {
             this.forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
@@ -993,6 +1151,12 @@ public class ConnectionManager {
         //todo: we need to notify? (in case of negative response)
     }
 
+    /**
+     * Method which tries to restore the snapshot locally.
+     * It restores the routing table, the direct connections and the spanning tree.
+     * @param snapshotIdentifier Unique identifier of the snapshot to be restored.
+     * @param result Boolean which contains the response.
+     */
     private synchronized void tryToRestoreSnapshot(SnapshotIdentifier snapshotIdentifier, boolean result){
         LoggerManager.getInstance().mutableInfo("try to restore the snapshot after 2PC", Optional.of(this.getClass().getName()), Optional.of("tryToRestoreSnapshot"));
         if(result) {
@@ -1036,10 +1200,10 @@ public class ConnectionManager {
 
     /**
      * Method used for forwarding a message not contained in the routing table.
-     * It sends the message along all paths of the spanning tree saved
-     * @param msg message to forward
-     * @param receivedHandler handler from which the message has been received
-     * @throws SocketClosedException if a socket has been closed due to a crash
+     * It sends the message along all paths of the spanning tree saved.
+     * @param msg Message to forward.
+     * @param receivedHandler Handler from which the message has been received.
+     * @throws SocketClosedException If a socket has been closed due to a crash.
      */
     private void forwardMessageAlongSPT(Message msg, Optional<ClientSocketHandler> receivedHandler) throws SocketClosedException{
         // I can just check the references for simplicity
@@ -1062,6 +1226,12 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Method used by the application to send a message towards another node.
+     * @param content Serializable object containing the information about the application message.
+     * @param destinationNodeName Name of the destination node.
+     * @throws DSException If something goes wrong.
+     */
     public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSException{
         if(this.panicMode){
             LoggerManager.getInstance().mutableInfo("Panic mode activated, do not send messages anymore...",Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
@@ -1072,6 +1242,13 @@ public class ConnectionManager {
         this.forwardMessage(message, destinationNodeName);
     }
 
+    /**
+     * Method used to forward a message received towards another node.
+     * If the node is not found it routing table it initiates the discovery procedure.
+     * @param message Generic message to be forwarded.
+     * @param destinationNodeName Name of the destination node.
+     * @throws DSException If something goes wrong.
+     */
     private void forwardMessage(Message message, NodeName destinationNodeName) throws DSException{
         try {
             ClientSocketHandler handler = this.routingTable.getNextHop(destinationNodeName);
@@ -1100,6 +1277,12 @@ public class ConnectionManager {
             throw new DSConnectionUnavailableException();
         }
     }
+
+    /**
+     * // TODO: fix this runtime exception
+     * Method called internally to forward the event through the event system.
+     * @param content Callback content to be used.
+     */
     private void forwardMessage(CallbackContent content) {
         ApplicationMessage appMessage = (ApplicationMessage) content.getCallBackMessage();
         ThreadPool.submit(()->{
@@ -1112,9 +1295,9 @@ public class ConnectionManager {
     }
 
     /**
-     * Method invoked when we need to discover if a node is present in the network
-     * @param destinationNodeName name of the node to discover
-     * @throws DSException DSNodeUnreachableException, means the node was not found during the discovery process
+     * Method invoked when we need to discover if a node is present in the network.
+     * @param destinationNodeName Name of the node to discover.
+     * @throws DSException DSNodeUnreachableException, means the node was not found during the discovery process.
      */
     private void sendDiscoveryMessage(NodeName destinationNodeName) throws DSException{
         MessageDiscovery msgd=new MessageDiscovery(this.name, destinationNodeName);
@@ -1152,9 +1335,11 @@ public class ConnectionManager {
     }
 
     /**
-     * Method invoked when a client handler receives a message. This method is SYNCHRONIZED on the entire object
+     * Method invoked when a client handler receives a message.
      * to ensure that all the operations in it are atomic on all the structures of the manager.
-     * @param m message received
+     * It can distinguish between the normal operating mode and the panic operating mode.
+     * It is a synchronized operation.
+     * @param m Message received.
      */
     synchronized void receiveMessage(Message m, ClientSocketHandler handler){
 
@@ -1371,11 +1556,19 @@ public class ConnectionManager {
 
     }
 
+    /**
+     * Getter of the internal routing table.
+     * @return The routing table.
+     */
     // <editor-fold desc="Static Getter">
     public RoutingTable getRoutingTable(){
         return routingTable;
     }
 
+    /**
+     * Getter of the internal spanning tree.
+     * @return The spanning tree.
+     */
     public SpanningTree getSpt(){
         return this.spt;
     }
