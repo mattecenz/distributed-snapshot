@@ -14,7 +14,7 @@ public class AppUtility implements ApplicationLayerInterface {
 
     /**
      * Override of the interface method to retrieve the application state.
-     * @return a Serializable object which corresponds to the application state at this moment.
+     * @return A Serializable object which corresponds to the application state at this moment.
      */
     // TODO: this is not an atomic operation, so be careful
     // TODO: can this warning cause issues ?
@@ -64,8 +64,8 @@ public class AppUtility implements ApplicationLayerInterface {
 
     /**
      * Override of the interface method which notifies the application when a node has left gracefully the network.
-     * @param ip ip of the disconnected node.
-     * @param port port of the disconnected node.
+     * @param ip IP of the disconnected node.
+     * @param port Port of the disconnected node.
      */
     @Override
     public void exitNotify(String ip, int port) {

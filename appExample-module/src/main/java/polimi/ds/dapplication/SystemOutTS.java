@@ -12,7 +12,7 @@ public class SystemOutTS {
 
     /**
      * Thread-safe println method.
-     * @param msg string to be printed.
+     * @param msg String to be printed.
      */
     public static void println(String msg){
         synchronized(systemOutLock){
@@ -22,7 +22,7 @@ public class SystemOutTS {
 
     /**
      * Thread-safe print method.
-     * @param msg string to be printed.
+     * @param msg String to be printed.
      */
     public static void print(String msg){
         synchronized(systemOutLock){

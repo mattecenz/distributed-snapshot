@@ -16,7 +16,7 @@ public abstract class Message implements Serializable {
     /**
      * Constructor.
      * Since it is an abstract class this constructor will only be called by the subclasses.
-     * @param messageID internal id of the message.
+     * @param messageID Internal id of the message.
      */
     public Message(MessageID messageID) {
         this.messageID = messageID;
@@ -24,7 +24,7 @@ public abstract class Message implements Serializable {
 
     /**
      * Getter of the internal id.
-     * @return the id of the message.
+     * @return The id of the message.
      */
     public MessageID getMessageID() {
         return this.messageID;

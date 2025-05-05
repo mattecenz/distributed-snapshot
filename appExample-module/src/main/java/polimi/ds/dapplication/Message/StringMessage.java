@@ -13,7 +13,7 @@ public class StringMessage extends Message {
 
     /**
      * Constructor of the string message object.
-     * @param message string to be sent.
+     * @param message String to be sent.
      */
     public StringMessage(String message) {
         super(MessageID.MESSAGE_STRING);
@@ -22,7 +22,7 @@ public class StringMessage extends Message {
 
     /**
      * Getter of the message.
-     * @return the string containing the message.
+     * @return The string containing the message.
      */
     public String getMessage() {
         return this.message;

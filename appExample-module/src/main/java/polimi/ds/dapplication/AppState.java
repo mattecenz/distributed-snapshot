@@ -23,7 +23,7 @@ public class AppState implements Serializable {
 
     /**
      * Method to append a message to the internal list.
-     * @param msg string message to be saved.
+     * @param msg String message to be saved.
      */
     public synchronized void appendMessage(String msg){
         this.messageHistory.add(msg);
@@ -32,7 +32,7 @@ public class AppState implements Serializable {
     /**
      * Method to return the internal message history.
      * NB: it is not safe as it does not return a copy of the list, but a reference to it.
-     * @return the list of messages received up to this point.
+     * @return The list of messages received up to this point.
      */
     public List<String> getMessageHistory(){
         return this.messageHistory;

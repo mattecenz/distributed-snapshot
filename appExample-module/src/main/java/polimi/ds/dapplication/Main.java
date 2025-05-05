@@ -38,8 +38,8 @@ public class Main {
 
     /**
      * Retry the input until the regex is not matched.
-     * @param regex regex to match.
-     * @return the correct input string.
+     * @param regex Regex to match.
+     * @return The correct input string.
      */
     private static String retryInput(String regex){
         String input = scanner.nextLine();
@@ -52,7 +52,7 @@ public class Main {
 
     /**
      * Retry the integer input until the user inserts the correct one.
-     * @return the correct input integer.
+     * @return The correct input integer.
      */
     private static Integer retryInputInteger(){
         Integer input;
@@ -238,7 +238,7 @@ public class Main {
     /**
      * Main of the application.
      * It asks for the initial configuration of the node, starts the connection and then enters the join procedure.
-     * @param args generic input arguments
+     * @param args Generic input arguments
      */
     public static void main(String[] args) {
 
@@ -271,7 +271,7 @@ public class Main {
 
     /**
      * Getter of the application state.
-     * @return the application state.
+     * @return The application state.
      */
     public static AppState getAppState(){
         return appState;

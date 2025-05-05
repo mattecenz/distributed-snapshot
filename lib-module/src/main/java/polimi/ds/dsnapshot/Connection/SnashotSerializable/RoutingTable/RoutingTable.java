@@ -17,7 +17,6 @@ import java.util.logging.Level;
 
 /**
  * Internal routing table of the connection manager.
- * If needed it needs to be accessed atomically
  */
 public class RoutingTable implements SnapshotSerializable {
     /**
@@ -26,8 +25,8 @@ public class RoutingTable implements SnapshotSerializable {
     private final Dictionary<NodeName, ClientSocketHandler> routingTableFields;
 
     /**
-     * Explicit copy constructor of a routing table
-     * @param other other routing table to be copied
+     * Explicit copy constructor of a routing table.
+     * @param other Other routing table to be copied.
      */
     public RoutingTable(RoutingTable other) {
         this.routingTableFields = new Hashtable<>();
@@ -48,7 +47,7 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to explicitly clear each entry of the routing table.
-     * It is an atomic operation
+     * It is an atomic operation.
      */
     public synchronized void clearTable(){
         LoggerManager.getInstance().mutableInfo("clearing routing table", Optional.of(this.getClass().getName()), Optional.of("clearTable"));
@@ -61,8 +60,8 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to explicitly check if the routing table is empty.
-     * It is an atomic operation
-     * @return true if it is empty
+     * It is an atomic operation.
+     * @return True if it is empty.
      */
     public synchronized boolean isEmpty(){
         return this.routingTableFields.isEmpty();
@@ -70,10 +69,10 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to add a new entry in the routing table.
-     * It is an atomic operation
-     * @param destination name of the destination node
-     * @param nextHopConnection handler to call when sending a message to the destination node
-     * @throws RoutingTableNodeAlreadyPresentException if the node is already present in the routing table
+     * It is an atomic operation.
+     * @param destination Name of the destination node.
+     * @param nextHopConnection Handler to call when sending a message to the destination node.
+     * @throws RoutingTableNodeAlreadyPresentException If the node is already present in the routing table.
      */
     public synchronized void addPath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeAlreadyPresentException {
         if (this.routingTableFields.get(destination) != null) throw new RoutingTableNodeAlreadyPresentException();
@@ -86,13 +85,17 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Utility method for printing the internal routing table.
-     * It is an atomic operation
+     * It is an atomic operation.
      */
     public synchronized void printRoutingTable() { //TODO: use log
         System.out.println(this.getRoutingTableString());
     }
 
-
+    /**
+     * TODO: this is toString() ?
+     * Method used to convert the routing table into a string for printing purposes.
+     * @return The stringified routing table.
+     */
     private String getRoutingTableString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Routing Table:\n");
@@ -110,10 +113,10 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to update the path to a destination node.
-     * It is an atomic operation
-     * @param destination destination to be updated
-     * @param nextHopConnection new client handler
-     * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
+     * It is an atomic operation.
+     * @param destination Destination to be updated.
+     * @param nextHopConnection New client handler.
+     * @throws RoutingTableNodeNotPresentException If the node was not present in the routing table.
      */
     public synchronized void updatePath(NodeName destination, ClientSocketHandler nextHopConnection) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination)==null) throw new RoutingTableNodeNotPresentException();
@@ -124,9 +127,9 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to explicitly remove the path from a specific destination node.
-     * It is an atomic operation
-     * @param destination destination to be removed
-     * @throws RoutingTableNodeNotPresentException if the node was not present in the routing table
+     * It is an atomic operation.
+     * @param destination Destination to be removed.
+     * @throws RoutingTableNodeNotPresentException If the node was not present in the routing table.
      */
     public synchronized void removePath(NodeName destination) throws RoutingTableNodeNotPresentException {
         if(this.routingTableFields.get(destination) == null) throw new RoutingTableNodeNotPresentException();
@@ -139,8 +142,8 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Method to remove all the paths associated to the input handler.
-     * It is an atomic operation
-     * @param handler client socket handler to be removed
+     * It is an atomic operation.
+     * @param handler Client socket handler to be removed.
      */
     public void removeAllIndirectPath(ClientSocketHandler handler){
         var keys = this.routingTableFields.keys();
@@ -156,10 +159,10 @@ public class RoutingTable implements SnapshotSerializable {
 
     /**
      * Return the handler associated to the node name in input.
-     * It is an atomic operation
-     * @param destination name of the node to be searched in the routing table
-     * @return the client socket handler, if found
-     * @throws RoutingTableNodeNotPresentException if the node was not found in the routing table
+     * It is an atomic operation.
+     * @param destination Name of the node to be searched in the routing table.
+     * @return The client socket handler, if found.
+     * @throws RoutingTableNodeNotPresentException If the node was not found in the routing table.
      */
     public synchronized ClientSocketHandler getNextHop(NodeName destination) throws RoutingTableNodeNotPresentException {
         LoggerManager.getInstance().mutableInfo("requested next hop for:" + destination.getIP() + ":" + destination.getPort(), Optional.of(this.getClass().getName()), Optional.of("getNextHop"));
@@ -174,11 +177,21 @@ public class RoutingTable implements SnapshotSerializable {
         return nextHop;
     }
 
+    /**
+     * Method used when saving the routing table in the snapshot.
+     * It is an atomic operation.
+     * @return The routing table serializable object.
+     */
     @Override
     public synchronized Serializable toSerialize(){
         return new SerializableRoutingTable(routingTableFields);
     }
 
+    /**
+     * Method used to validate the routing table loaded by the snapshot.
+     * @param serializable The loaded routing table.
+     * @return True if the new routing table is valid.
+     */
     @Override
     public synchronized boolean serializedValidation(Serializable serializable){
         SerializableRoutingTable serializableRoutingTable = (SerializableRoutingTable) serializable;
@@ -213,6 +226,12 @@ public class RoutingTable implements SnapshotSerializable {
         return true;
     }
 
+    /**
+     * Method to recreate the routing table from a serialized version.
+     * @param serializableRoutingTable Routing table read from the snapshot.
+     * @param manager Connection manager useful when adding new connections.
+     * @return A list of socket handlers which contains the new connections created during the restore process.
+     */
     public synchronized List<ClientSocketHandler> fromSerialize(SerializableRoutingTable serializableRoutingTable, ConnectionManager manager){
         Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict = serializableRoutingTable.getOldRoutingTableFields();
         removeNonDirectConnections(oldRoutingTableFieldsDict);
@@ -230,6 +249,11 @@ public class RoutingTable implements SnapshotSerializable {
         return newConnections;
     }
 
+    /**
+     * Method to manually remove all the non-direct connections.
+     * Useful when reloading the routing table from the snapshot, as it cleanses the routing table.
+     * @param oldRoutingTableFieldsDict Dictionary of the old values of the routing table.
+     */
     private synchronized void removeNonDirectConnections(Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict){
         Enumeration<NodeName> keys = routingTableFields.keys();
 
@@ -243,6 +267,13 @@ public class RoutingTable implements SnapshotSerializable {
         }
     }
 
+    /**
+     * Method to add the new entries of the routing table taken from the snapshot.
+     * @param oldRoutingTableFieldsDict Dictionary of the old values of the routing table.
+     * @param manager Connection manager useful when adding new connections.
+     * @return A list of socket handlers containing the new connections.
+     * @throws IOException If something goes wrong.
+     */
     private synchronized List<ClientSocketHandler> addNewEntries(Dictionary<NodeName, SerializedSocketHandler> oldRoutingTableFieldsDict, ConnectionManager manager) throws IOException {
         Enumeration<NodeName> keys = oldRoutingTableFieldsDict.keys();
         List<ClientSocketHandler> newConnections = new ArrayList<>();
@@ -273,6 +304,13 @@ public class RoutingTable implements SnapshotSerializable {
         return newConnections;
     }
 
+    /**
+     * Method to open a new socket connection.
+     * @param destination Name of the destination node.
+     * @param manager Connection manager.
+     * @return The handler associated to the socket connection.
+     * @throws IOException If something goes wrong when opening the connection.
+     */
     private ClientSocketHandler socketOpen(NodeName destination, ConnectionManager manager) throws IOException {
         Socket socket = new Socket(destination.getIP(),destination.getPort());
         ClientSocketHandler joinerHandler = new ClientSocketHandler(socket, destination,manager,true);
