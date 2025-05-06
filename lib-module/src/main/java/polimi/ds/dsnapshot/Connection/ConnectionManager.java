@@ -86,7 +86,8 @@ public class ConnectionManager {
     /**
      * Shared variable which indicates if the manager is in panic mode (after a crash) or not.
      */
-    private boolean panicMode=false;
+    //private boolean panicMode=false;
+    private PanicManager panicManager = new PanicManager();
     /**
      * Name of the parent who crashed. Useful for reconnection procedures
      */
@@ -357,7 +358,7 @@ public class ConnectionManager {
     *                for the incoming connection.
     */
     synchronized void receiveNewJoinMessage(JoinMsg joinMsg, UnNamedSocketHandler unnamedHandler) {
-        if(this.panicMode) {
+        if(this.panicManager.isLocked()) {
 
             if (this.nameOfCrashedChildren.contains(joinMsg.getJoinerName())){
                 LoggerManager.getInstance().mutableInfo("A saved children wants to reconnect, I'll allow it this time.", Optional.of(this.getClass().getName()), Optional.of("receiveNewJoinMessage"));
@@ -514,7 +515,7 @@ public class ConnectionManager {
 
     // <editor-fold desc="Exit procedure">
     public synchronized void exitNetwork() throws DSException {
-        if(this.panicMode) {
+        if(this.panicManager.isLocked()) {
             LoggerManager.getInstance().mutableInfo("Panic mode activated, cannot manually leave the network anymore...", Optional.of(this.getClass().getName()), Optional.of("exitNetwork"));
             throw new DSNetworkCrashedException();
         }
@@ -653,9 +654,9 @@ public class ConnectionManager {
     }
 
     synchronized void initiatePanicMode(){
-        if(this.panicMode) return;
+        if(this.panicManager.isLocked()) return;
 
-        this.panicMode = true;
+        this.panicManager.setPanicMode(true);
         // This socket will be closed now.
         // If multiple sockets crash at the same time only one will activate the panic mode.
 
@@ -802,6 +803,10 @@ public class ConnectionManager {
 
     // <editor-fold desc="restore Snapshot procedure">
     public void startSnapshotRestoreProcedure(SnapshotIdentifier snapshotIdentifier) throws DSSnapshotRestoreLocalException, DSSnapshotRestoreRemoteException {
+        //lock
+        this.panicManager.setSnapshotLock(true);
+
+        //2pc
         LoggerManager.getInstance().mutableInfo("starting snapshot restore procedure (2PC)", Optional.of(this.getClass().getName()), Optional.of("startSnapshotRestoreProcedure"));
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(snapshotIdentifier);
         try{
@@ -834,17 +839,21 @@ public class ConnectionManager {
                 }
         } catch (InterruptedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE, "Interrupted exception", e);
+            this.panicManager.setSnapshotLock(false);
             throw new DSSnapshotRestoreLocalException();
             //TODO: decide
         } catch (SnapshotPendingRequestManagerException e) {
             LoggerManager.instanceGetLogger().log(Level.WARNING,"received inconsistent snapshot response",e);
+            this.panicManager.setSnapshotLock(false);
             throw new DSSnapshotRestoreLocalException();
             //TODO: decide
         } catch (Snapshot2PCException e){
             LoggerManager.instanceGetLogger().log(Level.SEVERE,"the 2PC failed: ",e);
+            this.panicManager.setSnapshotLock(false);
             throw new DSSnapshotRestoreLocalException();
         } catch (SocketClosedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE,"Socket closed during snapshot restore! ",e);
+            this.panicManager.setSnapshotLock(false);
         }
     }
 
@@ -865,6 +874,10 @@ public class ConnectionManager {
     }
 
     private void receiveSnapshotRestoreRequest(RestoreSnapshotRequest restoreSnapshotRequest, ClientSocketHandler sender){
+        //lock
+        this.panicManager.setSnapshotLock(true);
+
+        //2pc
         LoggerManager.getInstance().mutableInfo("the node has received a restore request", Optional.of(this.getClass().getName()), Optional.of("receiveSnapshotRestoreRequest"));
         try {
             this.snapshotManager.validateSnapshotRequest(restoreSnapshotRequest);
@@ -966,12 +979,15 @@ public class ConnectionManager {
                     lock.notifyAll();
                 }
                 tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+                this.panicManager.setSnapshotLock(false);
                 return;
             }
 
             if(snapshotPendingRequestManager.removePendingRequest(handler.getRemoteNodeName(),restoreSnapshotResponse.getSnapshotIdentifier())){
                 this.forwardMessageAlongSPT(result, Optional.empty());
                 tryToRestoreSnapshot(restoreSnapshotResponse.getSnapshotIdentifier(),restoreSnapshotResponse.isSnapshotValid());
+                this.panicManager.setSnapshotLock(false);
+                if(restoreSnapshotResponse.isSnapshotValid())this.panicManager.setPanicMode(false);
             }
 
         } catch (SnapshotPendingRequestManagerException e) {
@@ -987,9 +1003,13 @@ public class ConnectionManager {
         try {
             this.forwardMessageAlongSPT(agreementResult, Optional.ofNullable(handler));
             this.tryToRestoreSnapshot(agreementResult.getSnapshotIdentifier(), agreementResult.getAgreementResult());
+            //unlock panic mode if snapshot restore procedure succeed
+            if(agreementResult.getAgreementResult())this.panicManager.setPanicMode(false);
         } catch (SocketClosedException e) {
             LoggerManager.instanceGetLogger().log(Level.SEVERE,"Socket closed during snapshot restore! ",e);
         }
+        //unlockSnapshot
+        this.panicManager.setSnapshotLock(false);
         //todo: we need to notify? (in case of negative response)
     }
 
@@ -1063,7 +1083,7 @@ public class ConnectionManager {
     }
 
     public void sendMessage(Serializable content, NodeName destinationNodeName) throws DSException{
-        if(this.panicMode){
+        if(this.panicManager.isLocked()){
             LoggerManager.getInstance().mutableInfo("Panic mode activated, do not send messages anymore...",Optional.of(this.getClass().getName()), Optional.of("sendMessage"));
             throw new DSNetworkCrashedException();
         }
@@ -1196,9 +1216,21 @@ public class ConnectionManager {
                     // LoggerManager.instanceGetLogger().log(Level.SEVERE, "Ack already removed from the ack map", e);
                 }
             }
+            case SNAPSHOT_RESET_REQUEST -> {
+                RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
+                ThreadPool.submit(()->{this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);});
+            }
+            case SNAPSHOT_RESET_RESPONSE ->{
+                RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
+                this.receiveSnapshotRestoreResponse(restoreSnapshotResponse, handler);
+            }
+            case SNAPSHOT_RESET_AGREEMENT -> {
+                RestoreSnapshotRequestAgreementResult result = (RestoreSnapshotRequestAgreementResult) m;
+                this.receiveAgreementResult(result, handler);
+            }
         }
 
-        if(this.panicMode){
+        if(this.panicManager.isLocked()){
             LoggerManager.getInstance().mutableInfo("Panic mode activated, the message received will be lost...",Optional.of(this.getClass().getName()), Optional.of("sendMessageSynchronized"));
             return;
         }
@@ -1339,18 +1371,6 @@ public class ConnectionManager {
             }
             case MESSAGE_NODE_CRASHED -> {
                 this.initiatePanicMode();
-            }
-            case SNAPSHOT_RESET_REQUEST -> {
-                RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) m;
-                ThreadPool.submit(()->{this.receiveSnapshotRestoreRequest(restoreSnapshotRequest, handler);});
-            }
-            case SNAPSHOT_RESET_RESPONSE ->{
-                RestoreSnapshotResponse restoreSnapshotResponse = (RestoreSnapshotResponse) m;
-                this.receiveSnapshotRestoreResponse(restoreSnapshotResponse, handler);
-            }
-            case SNAPSHOT_RESET_AGREEMENT -> {
-                RestoreSnapshotRequestAgreementResult result = (RestoreSnapshotRequestAgreementResult) m;
-                this.receiveAgreementResult(result, handler);
             }
             case SNAPSHOT_TOKEN -> {
                 LoggerManager.getInstance().mutableInfo("snapshot token received", Optional.of(this.getClass().getName()), Optional.of("ConnectionManager"));
