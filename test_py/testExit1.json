@@ -3,7 +3,7 @@
         "input": ["<local_ip>","2000","y","/msg","<local_ip>","3000","ciao sono 2","/msg","<local_ip>","5000","ciao sono 2","/exit"],
         "port": 2000,
         "expected_output": ["<exit-notify-received (3000)>","ciao sono 5","ciao sono 4"],
-        "sync_points": [2,3,12]
+        "sync_points": [2,3,11]
     },
     {
         "input": ["<local_ip>","3000","n","<local_ip>","2000","/msg", "<local_ip>","4000","ciao sono 3","/exit"],

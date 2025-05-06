@@ -119,7 +119,7 @@ public class Main {
                     case "exit" -> {
                         try {
                             JavaDistributedSnapshot.getInstance().leaveNetwork();
-                            finished=true;
+                            //finished=true; //uncomment to automatically close the terminal
                         }
                         catch (DSException e){ // Exception for when the network crashed
                             SystemOutTS.println(e.getMessage());
