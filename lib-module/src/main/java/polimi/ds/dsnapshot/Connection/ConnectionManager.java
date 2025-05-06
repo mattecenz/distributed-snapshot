@@ -94,7 +94,7 @@ public class ConnectionManager {
      */
     private ServerSocket serverSocket;
     /**
-     * Shared variable which indicates if the manager is in panic mode (after a crash) or not.
+     * Reference to the manager which handles the blocking mode of the application.
      */
     //private boolean panicMode=false;
     private PanicManager panicManager = new PanicManager();
