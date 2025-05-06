@@ -31,7 +31,7 @@ public class AppState implements Serializable {
 
     /**
      * Method to return the internal message history.
-     * NB: it is not safe as it does not return a copy of the list, but a reference to it.
+     * TODO: it is not safe as it does not return a copy of the list, but a reference to it.
      * @return The list of messages received up to this point.
      */
     public List<String> getMessageHistory(){
