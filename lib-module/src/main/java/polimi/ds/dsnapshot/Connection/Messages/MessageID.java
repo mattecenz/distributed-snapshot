@@ -1,5 +1,8 @@
 package polimi.ds.dsnapshot.Connection.Messages;
 
+/**
+ * Enum which contains all the IDs of the library messages.
+ */
 //TODO: think about better names
 public enum MessageID {
     MESSAGE_NOTIMPLEMENTED,

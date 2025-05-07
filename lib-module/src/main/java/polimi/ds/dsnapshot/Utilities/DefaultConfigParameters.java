@@ -3,10 +3,15 @@ package polimi.ds.dsnapshot.Utilities;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Class containing all the default configuration parameters of the library.
+ */
 public class DefaultConfigParameters {
-
+    /**
+     * Static map which to each key associates a default value.
+     */
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
-
+    // TODO: idk again this stuff.
     static {
         DEFAULTS.put("snapshot.path", "./snapshots/");
         DEFAULTS.put("snapshot.codeAdmissibleChars", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
@@ -23,6 +28,11 @@ public class DefaultConfigParameters {
         DEFAULTS.put("logger.mute", true);
     }
 
+    /**
+     * Generic getter of a default value given an input key.
+     * @param key Input key to search.
+     * @return The value associated with the input key.
+     */
     public static Object get(String key) {
         return DEFAULTS.get(key);
     }

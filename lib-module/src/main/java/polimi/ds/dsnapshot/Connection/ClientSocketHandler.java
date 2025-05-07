@@ -20,56 +20,61 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
+/**
+ * Handler of the socket connection between two nodes.
+ * It is a Runnable object so it can be launched in a separate thread.
+ */
 public class ClientSocketHandler implements Runnable{
     /**
-     * Socket which represents the connection
+     * Socket which represents the connection.
      */
     private final Socket socket;
     /**
-     * Output stream
+     * Output stream.
      */
     private ObjectOutputStream out;
 
     /**
-     * Input stream
+     * Input stream.
      */
     private ObjectInputStream in;
     /**
-     * channel used to forward application message to application layer
+     * Channel used to forward application message to application layer.
      */
     private Event messageInputChannel;
      /**
-     * ping pong
+     * Ping pong manager associated to the handler.
      */
      private PingPongManager pingPongManager;
     /**
      * Name of the remote client associated to this socket.
-     * Careful, since it is not final it may happen that there is a period that the client remains with no name
      */
     private final NodeName remoteNodeName;
-
+    /**
+     * Boolean which indicates if the connection was initiated in this node or in the other node.
+     */
     private final boolean isOwner;
     /**
-     * Reference to the original connection manager for callback when a message is received
+     * Reference to the original connection manager for callback when a message is received.
      */
     private final ConnectionManager manager;
 
     /**
-     * Shared variable used for checking if the server is still listening or not
+     * Shared variable used for checking if the server is still listening or not.
      */
     private final AtomicBoolean inAvailable;
 
     /**
-     * Lock used for output (send) operations
+     * Lock used for output (send) operations.
      */
     private final Object outLock;
 
     /**
-     * Constructor of the handler
-     * @param socket socket to be managed
-     * @param remoteNodeName name of the remote node
-     * @param manager reference to the connection manager
-     * @param isOwner if the node is the first to open the connection
+     * Constructor of the handler.
+     * @param socket Socket to be managed.
+     * @param remoteNodeName Name of the remote node.
+     * @param manager Reference to the connection manager.
+     * @param isOwner If the node is the first to open the connection.
      */
     public ClientSocketHandler(Socket socket, NodeName remoteNodeName, ConnectionManager manager, boolean isOwner) {
         this.socket = socket;
@@ -86,10 +91,10 @@ public class ClientSocketHandler implements Runnable{
     }
 
     /**
-     * Constructor of the handler form a previous unnamed socket handler
-     * @param unhandler UnNamedSocketHandler constructed before
-     * @param remoteNodeName name of the remote node
-     * @param manager reference to the connection manager
+     * Constructor of the handler form a previous unnamed socket handler.
+     * @param unhandler UnNamedSocketHandler constructed before.
+     * @param remoteNodeName Name of the remote node.
+     * @param manager Reference to the connection manager.
      */
     public ClientSocketHandler(UnNamedSocketHandler unhandler, NodeName remoteNodeName, ConnectionManager manager){
         this.socket = unhandler.getSocket();
@@ -112,19 +117,26 @@ public class ClientSocketHandler implements Runnable{
 
     /**
      * Constructor of the handler without the connection manager.
-     * USE ONLY FOR TESTING !!!!!!!!!!!!!!!!!!!!!!
-     * @param socket socket to be managed
-     * @param remoteNodeName name of the remote node
+     * Used only for testing purposes.
+     * @param socket Socket to be managed.
+     * @param remoteNodeName Name of the remote node.
      */
     @TestOnly
     public ClientSocketHandler(Socket socket, NodeName remoteNodeName) {
         this(socket, remoteNodeName, null, false);
     }
 
+    /**
+     * Check if the node is the owner of the handler.
+     * @return True if this node is the owner.
+     */
     public boolean isNodeOwner() {
         return isOwner;
     }
 
+    /**
+     * Method to initiate the output stream of the socket.
+     */
     private void setOutStream(){
         try {
             LoggerManager.getInstance().mutableInfo("Creating the output stream...", Optional.of(this.getClass().getName()), Optional.of("setStream"));
@@ -137,7 +149,11 @@ public class ClientSocketHandler implements Runnable{
     }
 
 
-
+    /**
+     * Method to prepare the input event channel used for saving messages when the snapshot is active.
+     * @param javaDistributedSnapshot Reference to the snapshot instance which contains the method to receive messages
+     *                                to bind to the event system.
+     */
     private void prepareMessageInputEvent(JavaDistributedSnapshot javaDistributedSnapshot){
         try {
             messageInputChannel = EventsBroker.createEventChannel(this.remoteNodeName.getIP()+":"+this.remoteNodeName.getPort());
@@ -148,12 +164,17 @@ public class ClientSocketHandler implements Runnable{
         messageInputChannel.subscribe(javaDistributedSnapshot::ReceiveMessage);
     }
 
+    /**
+     * Getter of the input event channel.
+     * @return The input event channel.
+     */
     public Event getMessageInputChannel() {
         return messageInputChannel;
     }
 
     /**
-     * Method launched when the thread is submitted
+     * Method launched when the thread is submitted.
+     * It stays listening for new messages received on the input channel.
      */
     @Override
     public void run() {
@@ -209,6 +230,9 @@ public class ClientSocketHandler implements Runnable{
         }
     }
 
+    /**
+     * Method to gracefully close the socket connection.
+     */
     public void close() {
         try {
             this.socket.close();
@@ -229,9 +253,10 @@ public class ClientSocketHandler implements Runnable{
     }
 
     /**
-     * Method invoked when sending a message to the output stream. This method is thread safe.
-     * @param m message to be sent
-     * @throws SocketClosedException if the socket you are trying to send the message with is closed.
+     * Method invoked when sending a message to the output stream.
+     * This method is thread safe.
+     * @param m Message to be sent.
+     * @throws SocketClosedException If the socket you are trying to send the message with is closed.
      */
     public void sendMessage(Message m) throws SocketClosedException {
         synchronized (this.outLock) {
@@ -263,10 +288,17 @@ public class ClientSocketHandler implements Runnable{
         return this.remoteNodeName;
     }
 
+    /**
+     * Method to create a new ping pong manager and start the ping pong procedure.
+     * @param isFirstPing true if the ping received is the first.
+     */
     protected void startPingPong(boolean isFirstPing){
         pingPongManager = new PingPongManager(manager,this, isFirstPing);
     }
 
+    /**
+     * Method to stop the ping pong procedure.
+     */
     protected void stopPingPong(){
         pingPongManager.stopPingPong();
     }

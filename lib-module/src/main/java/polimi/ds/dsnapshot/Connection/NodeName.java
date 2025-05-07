@@ -10,18 +10,18 @@ import java.util.Objects;
 public class NodeName implements Serializable {
 
     /**
-     * Internal Ip
+     * Internal IP.
      */
     private String IP;
     /**
-     * Internal port
+     * Internal port.
      */
     private int port;
 
     /**
-     * Public constructor of the node name
-     * @param ip ip of the node
-     * @param port port of the node
+     * Public constructor of the node name.
+     * @param ip IP of the node.
+     * @param port Port of the node.
      */
     public NodeName(String ip, int port){
         this.IP = ip;
@@ -31,16 +31,16 @@ public class NodeName implements Serializable {
     // <editor-fold desc="Getters">
 
     /**
-     * Getter of the node IP
-     * @return string containing the IP
+     * Getter of the node IP.
+     * @return String containing the IP.
      */
     public String getIP() {
         return this.IP;
     }
 
     /**
-     * Getter of the node Port
-     * @return integer containing the port name
+     * Getter of the node Port.
+     * @return Integer containing the port name.
      */
     public int getPort() {
         return this.port;
@@ -49,10 +49,8 @@ public class NodeName implements Serializable {
     /**
      * Compares this node with another object to check for equality.
      * Two nodes are considered equal if they have the same IP address and port.
-     *
-     * @param other the object to compare.
-     * @return {@code true} if the two nodes have the same IP address and port,
-     *         {@code false} otherwise.
+     * @param other The object to compare.
+     * @return True if the objects are equal.
      */
     @Override
     public boolean equals(Object other) {
@@ -62,6 +60,11 @@ public class NodeName implements Serializable {
         NodeName otherNodeName = (NodeName) other;
         return this.port == otherNodeName.port && Objects.equals(this.IP, otherNodeName.IP);
     }
+
+    /**
+     * Method to calculate the hash code of the name.
+     * @return The integer hash code of the name.
+     */
     @Override
     public int hashCode() {
         return Objects.hash(IP, port);

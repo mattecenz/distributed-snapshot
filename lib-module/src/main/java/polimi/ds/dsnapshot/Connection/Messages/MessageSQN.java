@@ -8,18 +8,18 @@ package polimi.ds.dsnapshot.Connection.Messages;
 public class MessageSQN {
 
     /**
-     * Lock to ensure mutual exclusion
+     * Lock to ensure mutual exclusion.
      */
     private static final Object lock = new Object();
 
     /**
-     * Unique sequence number generated for each message
+     * Unique sequence number generated for each message.
      */
     private static Integer seq = 0;
 
     /**
-     * Getter of the unique id. The method is thread safe
-     * @return unique id
+     * Getter of the unique id. The method is thread safe.
+     * @return Unique integer id.
      */
     public static int getNextSequenceNumber(){
         synchronized (lock){
