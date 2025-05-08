@@ -19,6 +19,7 @@ import java.net.SocketException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Handler of the socket connection between two nodes.
@@ -158,8 +159,7 @@ public class ClientSocketHandler implements Runnable{
         try {
             messageInputChannel = EventsBroker.createEventChannel(this.remoteNodeName.getIP()+":"+this.remoteNodeName.getPort());
         } catch (EventException e) {
-            //todo decide
-            throw new RuntimeException(e);
+            LoggerManager.instanceGetLogger().log(Level.SEVERE, "Event exception:", e);
         }
         messageInputChannel.subscribe(javaDistributedSnapshot::ReceiveMessage);
     }
