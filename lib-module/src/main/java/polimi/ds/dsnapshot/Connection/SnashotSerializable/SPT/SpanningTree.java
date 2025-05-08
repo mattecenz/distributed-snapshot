@@ -13,21 +13,21 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Class which represents the spanning tree of the network from the pov of a single node
+ * Class which represents the spanning tree of the network from the pov of a single node.
  */
 public class SpanningTree implements SnapshotSerializable{
     /**
      * Optional object containing the anchor node.
-     * If it is empty it means that either the node has not connected yet to a network or is the node who created the network
+     * If it is empty it means that either the node has not connected yet to a network or is the node who created the network.
      */
     private Optional<ClientSocketHandler> anchorNodeHandler;
     /**
-     * List of children socket handlers
+     * List of children socket handlers.
      */
     private final List<ClientSocketHandler> children = new ArrayList<>();
 
     /**
-     * Default constructor of the spanning tree. The anchor node is an empty object
+     * Default constructor of the spanning tree. The anchor node is an empty object.
      */
     public SpanningTree(){
         LoggerManager.getInstance().mutableInfo("create new spanning tree", Optional.of(this.getClass().getName()), Optional.of("SpanningTree"));
@@ -35,8 +35,8 @@ public class SpanningTree implements SnapshotSerializable{
     }
 
     /**
-     * Copy constructor of the spanning tree. It is used for recovery from a snapshot
-     * @param other spanning tree object to be copied
+     * Copy constructor of the spanning tree. It is used for recovery from a snapshot.
+     * @param other Spanning tree object to be copied.
      */
     public SpanningTree(SpanningTree other) {
         this.anchorNodeHandler = other.anchorNodeHandler;
@@ -46,8 +46,8 @@ public class SpanningTree implements SnapshotSerializable{
     /**
      * Getter of the anchor node.
      * It is an atomic operation.
-     * @return the anchor node
-     * @throws SpanningTreeNoAnchorNodeException if no anchor node is present
+     * @return The anchor node handler.
+     * @throws SpanningTreeNoAnchorNodeException If no anchor node is present.
      */
     public synchronized ClientSocketHandler getAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
         if(this.anchorNodeHandler.isEmpty()) throw new SpanningTreeNoAnchorNodeException();
@@ -56,8 +56,8 @@ public class SpanningTree implements SnapshotSerializable{
     }
 
     /**
-     * Getter of the list of children
-     * @return
+     * Getter of the list of children.
+     * @return A list of children handlers.
      */
     public List<ClientSocketHandler> getChildren() {
         return this.children;
@@ -65,8 +65,8 @@ public class SpanningTree implements SnapshotSerializable{
 
     /**
      * Set a new anchor node for this node.
-     * It is an atomic operation
-     * @param anchorNodeHandler client socket handler of the new anchor node
+     * It is an atomic operation.
+     * @param anchorNodeHandler Client socket handler of the new anchor node.
      */
     public synchronized void setAnchorNodeHandler(ClientSocketHandler anchorNodeHandler) {
         LoggerManager.getInstance().mutableInfo("set new anchor node in spanning tree: " + anchorNodeHandler.getRemoteNodeName().getIP() + ":" + anchorNodeHandler.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("setAnchorNodeHandler"));
@@ -75,8 +75,8 @@ public class SpanningTree implements SnapshotSerializable{
 
     /**
      * Remove the current anchor of the node.
-     * It is an atomic operation
-     * @throws SpanningTreeNoAnchorNodeException if no parent is present
+     * It is an atomic operation.
+     * @throws SpanningTreeNoAnchorNodeException If no parent is present.
      */
     public synchronized void removeAnchorNodeHandler() throws SpanningTreeNoAnchorNodeException{
         LoggerManager.getInstance().mutableInfo("Removing the current anchor of the node.", Optional.of(this.getClass().getName()), Optional.of("setAnchorNodeHandler"));
@@ -86,9 +86,9 @@ public class SpanningTree implements SnapshotSerializable{
 
     /**
      * Add a new child in the spt.
-     * It is an atomic operation
-     * @param newChild new client socket handler of the child
-     * @throws SpanningTreeChildAlreadyPresentException if the child is already present in the spt
+     * It is an atomic operation.
+     * @param newChild New client socket handler of the child.
+     * @throws SpanningTreeChildAlreadyPresentException If the child is already present in the spt.
      */
     public synchronized void addChild(ClientSocketHandler newChild) throws SpanningTreeChildAlreadyPresentException {
         LoggerManager.getInstance().mutableInfo("add child to spanning tree: " + newChild.getRemoteNodeName().getIP()+":"+newChild.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
@@ -98,9 +98,9 @@ public class SpanningTree implements SnapshotSerializable{
 
     /**
      * Remove a child from the spt.
-     * It is an atomic operation
-     * @param child socket handler to remove
-     * @throws SpanningTreeChildNotPresentException if no child is present in the current list of children
+     * It is an atomic operation.
+     * @param child Socket handler to remove.
+     * @throws SpanningTreeChildNotPresentException If no child is present in the current list of children.
      */
     public synchronized void removeChild(ClientSocketHandler child) throws SpanningTreeChildNotPresentException {
         LoggerManager.getInstance().mutableInfo("child removed from the spanning tree: " + child.getRemoteNodeName().getIP()+":"+child.getRemoteNodeName().getPort(), Optional.of(this.getClass().getName()), Optional.of("addChild"));
@@ -108,15 +108,29 @@ public class SpanningTree implements SnapshotSerializable{
         this.children.remove(child);
     }
 
+    /**
+     * Method to check if this node is a leaf (i.e. has no children).
+     * If the node is the first of the network it needs to have only one child.
+     * @return True if this node is a leaf.
+     */
     public synchronized boolean isNodeLeaf(){
         if(this.anchorNodeHandler.isEmpty() && this.children.size() == 1) return true;
         return this.children.isEmpty();
     }
 
+    /**
+     * Method to create a serializable version of the spt.
+     * @return The serializable spanning tree.
+     */
     public synchronized Serializable toSerialize(){
         return new SerializableSpanningTree(this.anchorNodeHandler,this.children);
     }
 
+    /**
+     * Method to validate if the current spanning tree is the same of the one saved in the snapshot.
+     * @param serializable Spanning tree read from the snapshot.
+     * @return True if the current spt is coherent with the snapshot.
+     */
     public synchronized boolean serializedValidation(Serializable serializable){
         SerializableSpanningTree serializableSpanningTree = (SerializableSpanningTree)serializable;
         if(this.anchorNodeHandler.isEmpty() && serializableSpanningTree.getAnchorNodeName()!=null) return false;

@@ -7,6 +7,9 @@ import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 
+/** TODO: they are kinda not needed anymore, can be removed. I will avoid commenting them.
+ * Class wrapping some utils for serialization.
+ */
 public class SerializationUtils {
     public static <T extends Serializable> byte[] serialize(T object) throws IOException {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();

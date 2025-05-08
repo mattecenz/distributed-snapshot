@@ -5,18 +5,19 @@ import polimi.ds.dsnapshot.Connection.Messages.MessageID;
 import polimi.ds.dsnapshot.Connection.NodeName;
 
 /**
- * Represents a join message used for establishing a connection in the distributed snapshot system.
+ * Represents a join message used for establishing a connection in the system.
  */
 public class JoinMsg extends Message {
 
-
+    /**
+     * Name of the node who wants to join the network.
+     */
     private final NodeName joinerName;
 
     /**
      * Constructs a JoinMsg with a specified message ID, IP address, and port number.
-     *
      * @param messageID The unique identifier for this type of message.
-     * @param joinerName Unique name of the node who enters in the network. It corresponds to the ip:port of the server socket listening for connections
+     * @param joinerName Unique name of the node who enters in the network.
      */
     public JoinMsg(MessageID messageID, NodeName joinerName) {
         super(messageID, true);
@@ -25,16 +26,15 @@ public class JoinMsg extends Message {
 
     /**
      * Constructs a JoinMsg with a default message ID for joining operations.
-     *
-     * @param joinerName Unique name of the node who enters in the network. It corresponds to the ip:port of the server socket listening for connections
+     * @param joinerName Unique name of the node who enters in the network.
      */
     public JoinMsg(NodeName joinerName) {
         this(MessageID.MESSAGE_JOIN, joinerName);
     }
 
     /**
-     * Getter of the name of the node who wants to join the network
-     * @return the node name of the joiner
+     * Getter of the name of the node who wants to join the network.
+     * @return The node name of the joiner.
      */
     public NodeName getJoinerName() {
         return this.joinerName;

@@ -15,30 +15,30 @@ import java.util.logging.Level;
 
 /**
  * Class for any socket connected which has not yet a name in the network.
- * In order to be promoted in the network a JoinMessage needs to be sent.
+ * In order to be promoted in the network a JoinMessage or a DirectConnectionMessage needs to be sent.
  */
 public class UnNamedSocketHandler implements Runnable{
 
     /**
-     * Socket of the connection
+     * Socket of the connection.
      */
     private final Socket socket;
 
     /**
      * Input stream of the socket.
-     * This class has no output as it its not writable
+     * This class has no output as it its not writable.
      */
     private ObjectInputStream in;
 
     /**
-     * Connection manager to be notified when a message arrived
+     * Connection manager to be notified when a message arrived.
      */
     private final ConnectionManager connectionManager;
 
     /**
      * Constructor of the unnamed socket handler
-     * @param socket socket received
-     * @param connectionManager manager called when a message is received
+     * @param socket Socket received.
+     * @param connectionManager Manager called when a message is received.
      */
     public UnNamedSocketHandler(Socket socket, ConnectionManager connectionManager) {
         this.socket = socket;
@@ -46,16 +46,16 @@ public class UnNamedSocketHandler implements Runnable{
     }
 
     /**
-     * Getter of the socket
-     * @return the socket of the remote unnamed node
+     * Getter of the socket.
+     * @return the socket of the remote unnamed node.
      */
     public Socket getSocket() {
         return this.socket;
     }
 
     /**
-     * Getter of the input stream
-     * @return the object input stream related to this socket
+     * Getter of the input stream.
+     * @return The input stream related to this socket.
      */
     public ObjectInputStream getIn() {
         return this.in;
@@ -63,8 +63,8 @@ public class UnNamedSocketHandler implements Runnable{
 
     /**
      * Starts the thread which waits for incoming messages.
-     * If the message received is a JoinMessage then it activates the procedure in the ConnectionManager
-     * and passes the reference to a ClientSocketHandler afterwards.
+     * If the message received is a JoinMessage or a DirectConnectionMessage
+     * then it activates the procedure in the ConnectionManager and passes the reference to a ClientSocketHandler afterwards.
      */
     @Override
     public void run() {
