@@ -690,13 +690,8 @@ public class ConnectionManager {
      * @param handler Handler crashed.
      */
     synchronized void initiateCrashProcedure(ClientSocketHandler handler) {
-        // When a crash happens the safest thing to do is to block everything from executing.
-        // Which means block the application from sending messages.
-        // The easiest way to do it is by setting a shared variable to true which indicates that the application
-        // has gone in a "panic" state. (The better way to do it would be to use a state pattern)
 
-        // If the handler was the father, then save his name as this might be useful for reconnections
-        // For direct connections do not save them.
+        LoggerManager.getInstance().mutableInfo("Initiating crash procedure, saving name internally...", Optional.of(this.getClass().getName()), Optional.of("initiateCrashProcedure"));
         try {
             if(this.spt.getAnchorNodeHandler().equals(handler)) {
                 this.nameOfCrashedParent=Optional.of(handler.getRemoteNodeName());
@@ -710,10 +705,14 @@ public class ConnectionManager {
         if(this.spt.getChildren().contains(handler)){
             this.nameOfCrashedChildren.add(handler.getRemoteNodeName());
         }
+        LoggerManager.getInstance().mutableInfo("Done, now remove from spt and routing table...", Optional.of(this.getClass().getName()), Optional.of("initiateCrashProcedure"));
 
         // Remove the handler from everywhere
 
-        handler.stopPingPong();
+        if(this.spt.getChildren().contains(handler)){
+            handler.stopPingPong();
+            this.spt.removeChild(handler);
+        }
 
         try {
             this.routingTable.removePath(handler.getRemoteNodeName());
@@ -722,13 +721,13 @@ public class ConnectionManager {
         }
 
         this.routingTable.removeAllIndirectPath(handler);
+        LoggerManager.getInstance().mutableInfo("Removed from rt, now stop remove elsewhere and close...", Optional.of(this.getClass().getName()), Optional.of("initiateCrashProcedure"));
+
         this.handlerList.remove(handler);
         handler.close();
 
-        List<ClientSocketHandler> children = this.spt.getChildren();
-        if(children.contains(handler)){
-            this.spt.removeChild(handler);
-        }
+        LoggerManager.getInstance().mutableInfo("Crash ok, now initiate panic mode...", Optional.of(this.getClass().getName()), Optional.of("initiateCrashProcedure"));
+
 
         this.initiatePanicMode();
 
@@ -742,6 +741,8 @@ public class ConnectionManager {
         if(this.panicManager.isLocked()) return;
 
         this.panicManager.setPanicMode(true);
+        LoggerManager.getInstance().mutableInfo("Panic mode officially activated. Sending message to all other available nodes...", Optional.of(this.getClass().getName()), Optional.of("initiatePanicMode"));
+
         // This socket will be closed now.
         // If multiple sockets crash at the same time only one will activate the panic mode.
 
