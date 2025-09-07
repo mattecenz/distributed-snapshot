@@ -36,8 +36,6 @@ state of the client.
 
 # PSEUDOEXCEUTION
 
-NB: snapshot is easy, do not put it in here yet
-
 At the **start**:
 
 The client who uses the library needs to call a **setup function** to
@@ -90,7 +88,7 @@ In all the other cases not much can be done, if the message could not be sent
 because the peer crashed then return to the original client an exception.
 
 Anyway **the only objective** of the library is to try and keep the network reachable.
-If the message cannot be sent then the application must be aware of it and restart the application
+If the message cannot be sent then the application must be aware of it and restart the system
 from a snapshot if needed.
 
 
